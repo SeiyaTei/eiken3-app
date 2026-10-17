@@ -1,10 +1,11 @@
-const CACHE_NAME = 'eiken3-quest-v1';
+const CACHE_NAME = 'eiken3-chrono-v2';
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
   './icon.svg',
-  './data.js',
+  './data_part1.js',
+  './data_part2.js',
   './data_exam.js',
   './app.js'
 ];
