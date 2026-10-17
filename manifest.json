@@ -1,13 +1,13 @@
 {
-  "name": "英検3級 合格クエスト",
-  "short_name": "3級クエスト",
-  "description": "英検3級特化のゲーミフィケーションRPG学習アプリ",
+  "name": "英検3級 クロノ・オデッセイ",
+  "short_name": "3級オデッセイ",
+  "description": "1年間で英検3級を完全制覇する時空冒険RPGアプリ",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#042f2e",
+  "theme_color": "#042f2e",
   "icons": [
     {
       "src": "icon.svg",
