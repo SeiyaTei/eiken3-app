@@ -55,7 +55,7 @@ function fetchWithTimeout(request, timeoutMs = 3000) {
 }
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) return;
 
   const isSameOrigin = event.request.url.startsWith(self.location.origin);
 
