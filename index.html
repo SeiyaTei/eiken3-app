@@ -307,46 +307,49 @@
 
         <!-- 🌟 3級ギルド・4大特殊スキル訓練所 -->
         <div class="bg-gradient-to-br from-slate-900 via-teal-950 to-cyan-950 border-2 border-amber-400/70 rounded-3xl p-4 space-y-3 shadow-xl glow-gold">
-          <div>
-            <span class="text-[10px] font-black bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 px-2.5 py-0.5 rounded-full uppercase">SPECIAL GUILD TRAINING</span>
-            <h3 class="font-black text-sm md:text-base text-amber-300 mt-1 flex items-center gap-1.5">
-              🛡️ 3級特殊スキル・4大ギルド訓練所
-            </h3>
-            <p class="text-[11px] md:text-xs text-slate-300">声で単語を光らせる「自動詠唱バトル」や長文・英作文・過去分詞3連撃で大量EXP獲得！</p>
+          <div class="flex justify-between items-start gap-2">
+            <div>
+              <span class="text-[10px] font-black bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 px-2.5 py-0.5 rounded-full uppercase">SPECIAL GUILD TRAINING</span>
+              <h3 class="font-black text-sm md:text-base text-amber-300 mt-1 flex items-center gap-1.5">
+                🛡️ 3級特殊スキル・4大ギルド訓練所
+              </h3>
+              <p class="text-[11px] md:text-xs text-slate-300">4つの訓練を1周制覇するごとに🌟コンプリート大報酬（+180EXP/💎+35）獲得！</p>
+            </div>
+            <span id="guildRotationBadge" class="text-xs bg-slate-950 text-amber-300 font-bold px-2.5 py-0.5 rounded-full border border-amber-600 flex-shrink-0">0/4制覇</span>
           </div>
 
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <button onclick="startReadingDungeon()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-amber-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
+            <button id="btnGuildReading" onclick="startReadingDungeon()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-amber-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-2xl">📜</span>
-                <span class="text-[9px] font-black bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40">長文読解</span>
+                <span id="badgeGuildReading" class="text-[9px] font-black bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40">長文読解</span>
               </div>
               <div class="font-black text-xs md:text-sm text-amber-300 truncate">古代遺跡解読</div>
               <div class="text-[10px] text-slate-300 leading-tight mt-0.5">掲示・Eメール・物語</div>
             </button>
 
-            <button onclick="startWritingCraft()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-cyan-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
+            <button id="btnGuildWriting" onclick="startWritingCraft()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-cyan-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-2xl">✍️</span>
-                <span class="text-[9px] font-black bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/40">英作文</span>
+                <span id="badgeGuildWriting" class="text-[9px] font-black bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/40">英作文</span>
               </div>
               <div class="font-black text-xs md:text-sm text-cyan-300 truncate">魔導書クラフト</div>
               <div class="text-[10px] text-slate-300 leading-tight mt-0.5">意見・Eメール合成</div>
             </button>
 
-            <button onclick="startSpeakingBattle()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-rose-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
+            <button id="btnGuildSpeaking" onclick="startSpeakingBattle()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-rose-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-2xl">🎙️</span>
-                <span class="text-[9px] font-black bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/40">自動音声判定</span>
+                <span id="badgeGuildSpeaking" class="text-[9px] font-black bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/40">自動音声判定</span>
               </div>
               <div class="font-black text-xs md:text-sm text-rose-300 truncate">言霊カラオケ詠唱</div>
               <div class="text-[10px] text-slate-300 leading-tight mt-0.5">声で魔石を光らせろ！</div>
             </button>
 
-            <button onclick="startTrinitySlash()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-emerald-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
+            <button id="btnGuildTrinity" onclick="startTrinitySlash()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-emerald-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-2xl">⚡</span>
-                <span class="text-[9px] font-black bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/40">全50動詞</span>
+                <span id="badgeGuildTrinity" class="text-[9px] font-black bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/40">全50動詞</span>
               </div>
               <div class="font-black text-xs md:text-sm text-emerald-300 truncate">3連撃スラッシュ</div>
               <div class="text-[10px] text-slate-300 leading-tight mt-0.5">原形-過去-過去分詞</div>
