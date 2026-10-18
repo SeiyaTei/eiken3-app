@@ -40,15 +40,25 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+function fetchWithTimeout(request, timeoutMs = 3000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Network timeout')), timeoutMs);
+    fetch(request).then(
+      (res) => { clearTimeout(timer); resolve(res); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const isSameOrigin = event.request.url.startsWith(self.location.origin);
 
   if (isSameOrigin) {
-    // アプリ本体のHTML/JS/データファイルはオンライン時に最新を取得してキャッシュ更新
+    // 3秒以内に応答がなければ即座にキャッシュを返し、パケ詰まりでの起動フリーズを防止
     event.respondWith(
-      fetch(event.request)
+      fetchWithTimeout(event.request, 3000)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
@@ -56,14 +66,14 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => caches.match(event.request) || caches.match('./index.html'))
+        .catch(() => caches.match(event.request).then((res) => res || caches.match('./index.html')))
     );
   } else {
     // 外部CDN（Tailwind CSS等）はキャッシュ優先で高速化＆オフライン維持
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) return cachedResponse;
-        return fetch(event.request).then((networkResponse) => {
+        return fetchWithTimeout(event.request, 5000).then((networkResponse) => {
           if (!networkResponse || (networkResponse.status !== 200 && networkResponse.type !== 'opaque')) {
             return networkResponse;
           }
