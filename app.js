@@ -370,7 +370,14 @@ function normalizeMasterData() {
   const p1 = (typeof RAW_VOCAB_PART1 !== 'undefined') ? RAW_VOCAB_PART1 : [];
   const p2 = (typeof RAW_VOCAB_PART2 !== 'undefined') ? RAW_VOCAB_PART2 : [];
   if (p1.length > 0 || p2.length > 0) {
-    RAW_VOCAB_DATA = [...p1, ...p2];
+    RAW_VOCAB_DATA = [...p1, ...p2].map(item => {
+      let word = String(item[0] || '').trim();
+      // 単一単語の先頭大文字タイポ（Best, Action, Bargain等）を小文字へ自動修正
+      if (!word.includes(' ') && /^[A-Z][a-z]+$/.test(word)) {
+        word = word.toLowerCase();
+      }
+      return [word, item[1], item[2]];
+    });
   }
 
   if (typeof RAW_GRAMMAR_DATA !== 'undefined') {
@@ -485,10 +492,32 @@ function checkDailyStreak() {
 
 function recordWeakStat(id, isCorrect) {
   if (!id) return;
-  if (!userData.weakStats[id]) userData.weakStats[id] = { attempts: 0, cleared: 0, lastReviewed: 0 };
-  userData.weakStats[id].attempts += 1;
-  if (isCorrect) userData.weakStats[id].cleared += 1;
-  userData.weakStats[id].lastReviewed = Date.now();
+  const baseId = id.startsWith('v_ja_') ? id.replace('v_ja_', 'v_') : id;
+  const targetIds = (id === baseId) ? [id] : [id, baseId];
+
+  targetIds.forEach(targetId => {
+    if (!userData.weakStats[targetId]) {
+      userData.weakStats[targetId] = { attempts: 0, cleared: 0, streak: 0, lastReviewed: 0 };
+    }
+    const st = userData.weakStats[targetId];
+    st.attempts += 1;
+    if (isCorrect) {
+      st.cleared += 1;
+      st.streak = (st.streak || 0) + 1;
+    } else {
+      st.streak = 0;
+    }
+    st.lastReviewed = Date.now();
+  });
+
+  // 弱点リストに入っている問題で2回連続正解したら、自動的に「殿堂入り」へ昇格
+  const currentSt = userData.weakStats[id];
+  if (isCorrect && currentSt && currentSt.streak >= 2 && userData.weakList.includes(id)) {
+    userData.weakList = userData.weakList.filter(x => x !== id);
+    if (!userData.masteredList.includes(id)) {
+      userData.masteredList.push(id);
+    }
+  }
 }
 
 function getEquipBonusVal(equipObj) {
@@ -834,15 +863,17 @@ function generateGrammarQuiz(item) {
   const newAnsIndex = shuffledOptions.indexOf(correctOption);
   const questionAudioText = item.q.replace(/\([^)]*\)/g, ' , ');
   const completeSentence = item.q.replace(/\([^)]*\)/g, correctOption);
+  const translationText = item.sub ? `${item.sub}\n` : '';
 
   return {
     id: item.id,
     type: 'grammar',
     q: item.q,
-    sub: item.sub || '⚙️ 空欄に入る正しい英語を選ぼう',
+    sub: '⚙️ 英文を読んで、空欄 ( ) に入る正しい英語を選ぼう！（💡ヒントで和訳表示）',
+    translationHint: item.sub || '',
     options: shuffledOptions,
     ans: newAnsIndex,
-    explain: (item.exp || item.explain || '') + `\n\n【完成英文】\n${completeSentence}`,
+    explain: `${translationText}${item.exp || item.explain || ''}\n\n【完成英文】\n${completeSentence}`,
     audio_question: questionAudioText,
     audio_complete: completeSentence
   };
@@ -1329,6 +1360,9 @@ function toggleSpeechRecognition() {
   }
 }
 
+let audioSourceNode = null;
+let audioAnalyserNode = null;
+
 function stopMicRecognition() {
   isMicListening = false;
   if (recognitionInstance) {
@@ -1341,6 +1375,14 @@ function stopMicRecognition() {
   if (volumeCheckInterval) {
     clearInterval(volumeCheckInterval);
     volumeCheckInterval = null;
+  }
+  if (audioSourceNode) {
+    try { audioSourceNode.disconnect(); } catch (e) {}
+    audioSourceNode = null;
+  }
+  if (audioAnalyserNode) {
+    try { audioAnalyserNode.disconnect(); } catch (e) {}
+    audioAnalyserNode = null;
   }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     try { mediaRecorder.stop(); } catch (e) {}
@@ -1378,10 +1420,10 @@ async function startMicRecognition() {
     return;
   }
 
+  // Step 1: マイク権限を確認したら即座にトラックを停止し、OSのマイク排他ロックを解放する
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-    });
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tempStream.getTracks().forEach(track => track.stop());
   } catch (err) {
     if (recText) recText.innerText = '⚠️ マイク権限がブロックされています。ブラウザ設定でマイクを許可してください。';
     if (btnFallback) btnFallback.classList.remove('hidden');
@@ -1395,14 +1437,13 @@ async function startMicRecognition() {
     btnMic.innerHTML = `<span class="animate-ping">🔴</span> <span>詠唱聞き取り中...（声に出して読もう！）</span>`;
   }
 
-  startVoiceRecording(micStream);
-
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    startVolumeBasedKaraoke(micStream, q, false);
+    await activateVolumeFallback(q);
     return;
   }
 
+  // Step 2: マイクが解放された状態で SpeechRecognition を単独起動
   try {
     recognitionInstance = new SpeechRecognition();
     recognitionInstance.lang = 'en-US';
@@ -1412,8 +1453,24 @@ async function startMicRecognition() {
 
     if (recText) recText.innerText = '👂 リアルタイム聞き取り中... 光っていない単語を声に出そう！';
 
+    let hasSttResponded = false;
+    // 3.5秒間STTが反応しない場合は自動で声量検知フォールバックへ切り替え
+    const sttWatchdog = setTimeout(() => {
+      if (isMicListening && !hasSttResponded && !isAnswered) {
+        if (recognitionInstance) {
+          recognitionInstance.onend = null;
+          try { recognitionInstance.abort(); } catch (e) {}
+          recognitionInstance = null;
+        }
+        activateVolumeFallback(q);
+      }
+    }, 3500);
+
     recognitionInstance.onresult = (event) => {
+      hasSttResponded = true;
+      clearTimeout(sttWatchdog);
       if (isAnswered) return;
+
       let combinedTranscript = '';
       for (let i = 0; i < event.results.length; i++) {
         for (let j = 0; j < event.results[i].length; j++) {
@@ -1448,64 +1505,76 @@ async function startMicRecognition() {
       checkAndTriggerSpeakingClear(q, combinedTranscript);
     };
 
-    recognitionInstance.onerror = (event) => {
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'network' || event.error === 'audio-capture') {
-        if (recognitionInstance) {
-          recognitionInstance.onend = null;
-          try { recognitionInstance.abort(); } catch (e) {}
-        }
-        if (isMicListening && micStream) {
-          startVolumeBasedKaraoke(micStream, q, false);
-        }
+    recognitionInstance.onerror = () => {
+      clearTimeout(sttWatchdog);
+      if (recognitionInstance) {
+        recognitionInstance.onend = null;
+        try { recognitionInstance.abort(); } catch (e) {}
+        recognitionInstance = null;
       }
-      if (!isAnswered && btnFallback) btnFallback.classList.remove('hidden');
+      if (isMicListening && !isAnswered) {
+        activateVolumeFallback(q);
+      }
     };
 
     recognitionInstance.onend = () => {
-      if (isMicListening && !isAnswered && recognitionInstance) {
+      if (isMicListening && !isAnswered && !volumeCheckInterval && recognitionInstance) {
         setTimeout(() => {
-          if (isMicListening && !isAnswered && recognitionInstance) {
-            try { recognitionInstance.start(); } catch (e) {}
+          if (isMicListening && !isAnswered && !volumeCheckInterval && recognitionInstance) {
+            try { recognitionInstance.start(); } catch (e) {
+              activateVolumeFallback(q);
+            }
           }
         }, 150);
       }
     };
 
     recognitionInstance.start();
-    // Philips T7315でSTTが無反応な場合でも声量で光らせるアシストを併用起動
-    startVolumeBasedKaraoke(micStream, q, true);
-
   } catch (e) {
-    startVolumeBasedKaraoke(micStream, q, false);
+    await activateVolumeFallback(q);
   }
 }
 
-function startVolumeBasedKaraoke(stream, q, isAssistMode = false) {
+async function activateVolumeFallback(q) {
+  if (!isMicListening || isAnswered || volumeCheckInterval) return;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    startVoiceRecording(micStream);
+    startVolumeBasedKaraoke(micStream, q);
+  } catch (e) {
+    const btnFallback = document.getElementById('btnSpeakingFallback');
+    if (btnFallback) btnFallback.classList.remove('hidden');
+  }
+}
+
+function startVolumeBasedKaraoke(stream, q) {
   initAudio();
   if (!actx || !stream) return;
   const recText = document.getElementById('speakingRecognizedText');
-  if (!isAssistMode && recText) {
+  if (recText) {
     recText.innerText = '🔥 言霊ボイスパワー感知モード！ 元気よく最後まで声に出して読もう！';
   }
 
   try {
-    const source = actx.createMediaStreamSource(stream);
-    const analyser = actx.createAnalyser();
-    analyser.fftSize = 256;
-    source.connect(analyser);
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    audioSourceNode = actx.createMediaStreamSource(stream);
+    audioAnalyserNode = actx.createAnalyser();
+    audioAnalyserNode.fftSize = 256;
+    audioSourceNode.connect(audioAnalyserNode);
+    const dataArray = new Uint8Array(audioAnalyserNode.frequencyBinCount);
 
     let speakingTicks = 0;
-    const ticksPerWord = isAssistMode ? 6 : 4;
+    const ticksPerWord = 4;
 
     if (volumeCheckInterval) clearInterval(volumeCheckInterval);
     volumeCheckInterval = setInterval(() => {
-      if (!isMicListening || isAnswered) {
+      if (!isMicListening || isAnswered || !audioAnalyserNode) {
         clearInterval(volumeCheckInterval);
         volumeCheckInterval = null;
         return;
       }
-      analyser.getByteFrequencyData(dataArray);
+      audioAnalyserNode.getByteFrequencyData(dataArray);
       let sum = 0;
       for (let i = 2; i < 40; i++) sum += dataArray[i];
       const avgVolume = sum / 38;
@@ -1840,16 +1909,18 @@ function startSession() {
     enemyCurHp = 100;
     enemyAtk = playerMaxHp;
   } else if (isDailyCurrentSession || ['weakBattle', 'guerrilla', 'reading', 'writing', 'speaking', 'trinity'].includes(currentMode)) {
-    enemyMaxHp = Math.round(pStats.atk * qLen * 1.12);
+    // 全問正解（クリティカル0回）でも100%確実に撃破できる 0.82 倍に設定
+    enemyMaxHp = Math.round(pStats.atk * qLen * 0.82);
     enemyCurHp = enemyMaxHp;
-    enemyAtk = Math.max(25, Math.round(playerMaxHp * 0.3));
+    enemyAtk = Math.max(20, Math.round(playerMaxHp * 0.25));
   } else {
+    // 5段階の遠征難易度（Lv.1から無理なく段階的に挑戦できるスムーズな設計）
     const diffMultipliers = [
-      { reqAtk: 65, atk: 20 },
-      { reqAtk: 420, atk: 75 },
-      { reqAtk: 1500, atk: 190 },
-      { reqAtk: 4200, atk: 420 },
-      { reqAtk: 9500, atk: 850 }
+      { reqAtk: 35, atk: 18 },   // Rank 1: 初期状態(Lv.1〜)で突破可能
+      { reqAtk: 110, atk: 55 },  // Rank 2: Lv.15〜 または武器召喚で突破可能
+      { reqAtk: 320, atk: 140 }, // Rank 3: Lv.45〜
+      { reqAtk: 850, atk: 320 }, // Rank 4: Lv.90〜
+      { reqAtk: 2200, atk: 680 } // Rank 5: Lv.140〜
     ];
     const diff = diffMultipliers[selectedNormalDiffLevel - 1] || diffMultipliers[0];
     enemyMaxHp = Math.round(diff.reqAtk * qLen);
@@ -1858,6 +1929,7 @@ function startSession() {
   }
 
   hideAllViews();
+  setNavigationVisibility(false); // Philips T7315向けにバトル中はヘッダーと下部ナビを隠して縦幅を確保
   document.getElementById('viewQuiz').classList.remove('hidden');
 
   const enemyBox = document.getElementById('enemyCardBox');
@@ -2059,6 +2131,12 @@ function use5050Hint() {
     buttons[idx].disabled = true;
     buttons[idx].classList.add('opacity-25');
   });
+
+  // 文法問題で日本語訳ヒントがある場合はサブテキストに表示する
+  if (q.translationHint) {
+    const subEl = document.getElementById('quizSubText');
+    if (subEl) subEl.innerText = `💡 ヒント ${q.translationHint}`;
+  }
   playSE('chest');
 }
 
@@ -2140,16 +2218,17 @@ function processAnswerResult(isCorrect, q) {
     }
     updateBattleHpUi();
 
+    const isOverkill = (enemyCurHp === 0 && currentMode !== 'weakRetry');
     const isFullCritical = (isQuickAnswer && isSpdCrit) || currentMode === 'weakRetry';
     if (isFullCritical) {
       playSE('critical');
-      showDamagePopup(`💥 時空超会心!! -${dmg.toLocaleString()} HP`, true, true);
+      showDamagePopup(isOverkill ? `💥 OVERKILL!! -${dmg.toLocaleString()} HP` : `💥 時空超会心!! -${dmg.toLocaleString()} HP`, true, true);
     } else if (isQuickAnswer || isSpdCrit) {
       playSE('critical');
-      showDamagePopup(`⚡ CRITICAL! -${dmg.toLocaleString()} HP`, true, true);
+      showDamagePopup(isOverkill ? `⚡ OVERKILL! -${dmg.toLocaleString()} HP` : `⚡ CRITICAL! -${dmg.toLocaleString()} HP`, true, true);
     } else {
       playSE('correct');
-      showDamagePopup(`⚔️ -${dmg.toLocaleString()} HP`, false, true);
+      showDamagePopup(isOverkill ? `⚔️ OVERKILL! -${dmg.toLocaleString()} HP` : `⚔️ -${dmg.toLocaleString()} HP`, false, true);
     }
 
     if (q.rawWord && !userData.vocabBook.includes(q.rawWord)) {
@@ -2195,13 +2274,22 @@ function processAnswerResult(isCorrect, q) {
 
   feedbackExplain.innerText = q.explain || '正解を確認して次へ進もう！';
   feedbackModal.classList.remove('hidden');
+  // タブレット画面で手動スクロールせずに「つぎへ進む」が押せるよう自動スクロール
+  setTimeout(() => {
+    feedbackModal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 50);
   saveData();
 }
 
 function nextQuestion() {
   document.getElementById('quizFeedback').classList.add('hidden');
   currentIndex += 1;
-  if (currentIndex < currentQueue.length && playerCurHp > 0 && enemyCurHp > 0) {
+  // 強い武器で敵HPを0にした後も、予定された問題数（currentQueue.length）を最後まで学習させる
+  const shouldContinue = (currentMode === 'weakRetry')
+    ? (currentIndex < currentQueue.length && playerCurHp > 0 && enemyCurHp > 0)
+    : (currentIndex < currentQueue.length && playerCurHp > 0);
+
+  if (shouldContinue) {
     renderQuestion();
   } else {
     finishSession();
@@ -2764,6 +2852,8 @@ function setNavigationVisibility(isVisible) {
   const navEl = document.querySelector('nav');
   if (headerEl) headerEl.classList.toggle('hidden', !isVisible);
   if (navEl) navEl.classList.toggle('hidden', !isVisible);
+  document.body.classList.toggle('pb-24', isVisible);
+  document.body.classList.toggle('pb-4', !isVisible);
 }
 
 function hideAllViews() {
