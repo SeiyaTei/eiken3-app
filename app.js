@@ -884,7 +884,7 @@ function generateGrammarQuiz(item) {
     translationHint: item.sub || '',
     options: shuffledOptions,
     ans: newAnsIndex,
-    explain: `${translationText}${item.exp \vert{}\vert{} item.explain \vert{}\vert{} ''}\n\n【完成英文】\n${completeSentence}`,
+    explain: `${translationText}${item.exp || item.explain || ''}\n\n【完成英文】\n${completeSentence}`,
     audio_question: questionAudioText,
     audio_complete: completeSentence
   };
