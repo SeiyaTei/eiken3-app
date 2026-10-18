@@ -374,7 +374,7 @@ function normalizeMasterData() {
   const p2 = (typeof RAW_VOCAB_PART2 !== 'undefined') ? RAW_VOCAB_PART2 : [];
   if (p1.length > 0 || p2.length > 0) {
     const wordMap = new Map();
-    [...p1, ...p2].forEach(item => {
+    const registerWord = (item) => {
       let word = String(item[0] || '').trim();
       if (!word) return;
       if (!word.includes(' ') && /^[A-Z][a-z]+$/.test(word)) {
@@ -391,8 +391,15 @@ function normalizeMasterData() {
           existing[1] = `${existing[1]} ／ ${meaning}`;
         }
       }
-    });
-    RAW_VOCAB_DATA = Array.from(wordMap.values());
+    };
+
+    // 1. 最重要熟語120語(p1先頭)と後半データ(p2: S〜Zの動詞・A〜Zの名詞すべて)を最優先登録
+    p1.slice(0, 120).forEach(registerWord);
+    p2.forEach(registerWord);
+    // 2. 残りの枠にp1の動詞・形容詞を登録し、重要名詞を1語も失わずにきっちり800語に揃える
+    p1.slice(120).forEach(registerWord);
+
+    RAW_VOCAB_DATA = Array.from(wordMap.values()).slice(0, 800);
   }
 
   if (typeof RAW_GRAMMAR_DATA !== 'undefined') {
@@ -574,13 +581,23 @@ function addExp(amount, onAfterLevelUp) {
   userData.exp += amount;
   let needed = getExpNeededForLevel(userData.level);
   let leveledUp = false;
-  while (userData.exp >= needed && userData.level < 200) {
-    userData.exp -= needed;
-    userData.level += 1;
-    needed = getExpNeededForLevel(userData.level);
-    leveledUp = true;
+  let prestigeCount = 0;
+
+  while (userData.exp >= needed) {
+    if (userData.level < 200) {
+      userData.exp -= needed;
+      userData.level += 1;
+      needed = getExpNeededForLevel(userData.level);
+      leveledUp = true;
+    } else {
+      // Lv.200到達後は溢れたEXPをマスターボーナス（💎+25）へ変換し、成長の楽しみを永続化
+      userData.exp -= needed;
+      userData.gems += 25;
+      prestigeCount += 1;
+    }
   }
   saveData();
+
   if (leveledUp) {
     playSE('levelup');
     const currentAvatar = (typeof AVATARS !== 'undefined')
@@ -590,6 +607,14 @@ function addExp(amount, onAfterLevelUp) {
       `🎉 LEVEL UP! Lv.${userData.level} 到達！`,
       currentAvatar.emoji,
       `レベルが Lv.${userData.level} に上昇しました！\n現在の形態：【${currentAvatar.rank}】${currentAvatar.name}\n時空エネルギーにより攻撃力・防御HPが大幅に強化されました！`,
+      onAfterLevelUp
+    );
+  } else if (prestigeCount > 0) {
+    playSE('levelup');
+    showNoticeModal(
+      `👑 時空超越マスターボーナス！`,
+      '💎',
+      `Lv.200（最大レベル）の超過EXPが時空結晶へと変換されました！\n💎 クロノクリスタル +${prestigeCount * 25}個 を獲得！`,
       onAfterLevelUp
     );
   } else if (onAfterLevelUp) {
@@ -1716,6 +1741,8 @@ function checkAndTriggerSpeakingClear(q, transcript) {
   }
 }
 
+let activeRecordedAudio = null;
+
 function startVoiceRecording(stream) {
   if (!('MediaRecorder' in window) || !stream) return;
   try {
@@ -1739,8 +1766,13 @@ function startVoiceRecording(stream) {
 function playRecordedUserVoice() {
   if (!recordedAudioUrl) return;
   try {
-    const audio = new Audio(recordedAudioUrl);
-    audio.play();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (activeRecordedAudio) {
+      activeRecordedAudio.pause();
+      activeRecordedAudio.currentTime = 0;
+    }
+    activeRecordedAudio = new Audio(recordedAudioUrl);
+    activeRecordedAudio.play();
   } catch (e) {}
 }
 
@@ -1954,6 +1986,8 @@ let answeredQuestionsCount = 0;
 let combo = 0;
 let maxCombo = 0;
 let isAnswered = false;
+let isSessionFinishing = false;
+let isBossTicketConsumedInSession = false;
 
 let playerMaxHp = 150;
 let playerCurHp = 150;
@@ -1987,6 +2021,10 @@ function stopBattleTimers() {
   clearTimeout(postAnswerTimerId);
   clearTimeout(fallbackTimerId);
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  if (activeRecordedAudio) {
+    try { activeRecordedAudio.pause(); } catch (e) {}
+    activeRecordedAudio = null;
+  }
   stopMicRecognition();
 }
 
@@ -1997,6 +2035,8 @@ function startSession() {
   combo = 0;
   maxCombo = 0;
   isFeverMode = false;
+  isSessionFinishing = false;
+  isBossTicketConsumedInSession = false;
 
   const pStats = calculatePlayerStats();
   playerMaxHp = pStats.hp;
@@ -2295,6 +2335,12 @@ function processAnswerResult(isCorrect, q) {
   const isQuickAnswer = (answerDuration <= criticalLimitDuration);
 
   answeredQuestionsCount += 1;
+  // ボス戦で最初の1問目に解答した時点でチケットを1枚確定消費（開始直後の誤タップ帰還は保護しつつ、敗北直前のリタイア逃げチートを防止）
+  if (isBossMode && !isBossTicketConsumedInSession && userData.bossTickets > 0) {
+    userData.bossTickets -= 1;
+    isBossTicketConsumedInSession = true;
+  }
+
   userData.totalAnswered += 1;
   recordWeakStat(q.id, isCorrect);
 
@@ -2411,6 +2457,7 @@ function processAnswerResult(isCorrect, q) {
 }
 
 function nextQuestion() {
+  if (isSessionFinishing) return;
   document.getElementById('quizFeedback').classList.add('hidden');
   currentIndex += 1;
   // 強い武器で敵HPを0にした後も、予定された問題数（currentQueue.length）を最後まで学習させる
@@ -2427,6 +2474,8 @@ function nextQuestion() {
 
 // ==================== 10. リザルト ＆ 全15章エンディング分岐 ====================
 function finishSession() {
+  if (isSessionFinishing) return;
+  isSessionFinishing = true;
   stopBattleTimers();
   const isEnemyDefeated = (enemyCurHp <= 0);
 
@@ -2444,11 +2493,6 @@ function proceedFinishSession() {
   document.getElementById('viewQuiz').classList.add('hidden');
   document.getElementById('viewResult').classList.remove('hidden');
   playBGM('result');
-
-  // ボス戦で1問以上解答してリザルトへ到達した時点でチケットを1枚消費（誤タップ帰還時のチケット消失を防止）
-  if (isBossMode && answeredQuestionsCount > 0 && userData.bossTickets > 0) {
-    userData.bossTickets -= 1;
-  }
 
   let earnedExp = 0;
   let earnedGems = 0;
@@ -3089,4 +3133,42 @@ function resetAllProgress() {
 window.addEventListener('DOMContentLoaded', () => {
   loadData();
 });
-document.body.addEventListener('click', initAudio, { once: true });
+
+// タップのたびに AudioContext のスリープ解除と日付またぎ（デイリーミッション更新）を保証
+document.addEventListener('pointerdown', () => {
+  initAudio();
+  if (userData.lastLoginDate !== getTodayString()) {
+    checkDailyStreak();
+    saveData();
+  }
+}, { passive: true });
+
+// タブレットの画面オフ（スリープ）や別アプリ切り替え時のライフサイクル管理
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearTimeout(bgmTimer);
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (activeRecordedAudio) {
+      try { activeRecordedAudio.pause(); } catch (e) {}
+    }
+    if (isMicListening) stopMicRecognition();
+    if (actx && actx.state === 'running') {
+      try { actx.suspend(); } catch (e) {}
+    }
+  } else {
+    if (userData.lastLoginDate !== getTodayString()) {
+      checkDailyStreak();
+      saveData();
+    }
+    if (actx && actx.state === 'suspended') {
+      try { actx.resume(); } catch (e) {}
+    }
+    if (isBgmEnabled) {
+      const isQuizVisible = !document.getElementById('viewQuiz')?.classList.contains('hidden');
+      const isResultVisible = !document.getElementById('viewResult')?.classList.contains('hidden');
+      if (isQuizVisible) playBGM(isBossMode ? 'boss' : (isFeverMode ? 'fever' : 'battle'));
+      else if (isResultVisible) playBGM('result');
+      else playBGM('home');
+    }
+  }
+});
