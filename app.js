@@ -443,12 +443,10 @@ function sanitizeUserData() {
 
   if (!Array.isArray(userData.weakList)) userData.weakList = [];
   if (!Array.isArray(userData.masteredList)) userData.masteredList = [];
-  if (!userData.weakStats || typeof userData.weakStats !== 'object') userData.weakStats = {};
-  if (!Array.isArray(userData.vocabBook)) userData.vocabBook = [];
-  if (RAW_VOCAB_DATA.length > 0) {
-    const validWords = new Set(RAW_VOCAB_DATA.map(x => x[0]));
-    userData.vocabBook = [...new Set(userData.vocabBook)].filter(w => validWords.has(w));
-  }
+  userData.weakList = [...new Set(userData.weakList)];
+  const activeWeakSet = new Set(userData.weakList);
+  // 克服中リストにあるIDが殿堂入りリストに重複残留しないよう排他制御
+  userData.masteredList = [...new Set(userData.masteredList)].filter(id => !activeWeakSet.has(id));
   if (!Array.isArray(userData.unlockedEquips)) userData.unlockedEquips = [];
   if (!userData.equipLevels || typeof userData.equipLevels !== 'object') userData.equipLevels = {};
 
@@ -509,11 +507,12 @@ function saveData() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
   } catch (e) {
-    // ストレージ容量上限（QuotaExceededError）対策：弱点リスト外の古い統計履歴を整理して再保存
     try {
-      const weakSet = new Set(userData.weakList);
+      const weakBaseSet = new Set(
+        userData.weakList.map(id => id.startsWith('v_ja_') ? id.replace('v_ja_', 'v_') : id)
+      );
       Object.keys(userData.weakStats).forEach(k => {
-        if (!weakSet.has(k) && (userData.weakStats[k].cleared || 0) >= 3) {
+        if (k.startsWith('v_ja_') && !userData.weakList.includes(k) && !weakBaseSet.has(k.replace('v_ja_', 'v_'))) {
           delete userData.weakStats[k];
         }
       });
@@ -1107,7 +1106,7 @@ function getQuizDataById(id) {
         sub: found.sub || '✍️ 質問に対する英作文（理由・Eメール）を合成しよう',
         words: found.words,
         explain: found.explain,
-        audio_question: found.audio_question || found.words.join(' '),
+        audio_question: null, // 解答前の正解ネタバレ読み上げを防止
         audio_complete: found.words.join(' ')
       };
     }
@@ -1410,7 +1409,7 @@ function startWritingCraft() {
     sub: item.sub || '✍️ 質問に対する英作文（理由・Eメール）を合成しよう',
     words: item.words,
     explain: item.explain,
-    audio_question: item.audio_question || item.words.join(' '),
+    audio_question: null,
     audio_complete: item.words.join(' ')
   }));
   startSession();
@@ -2459,19 +2458,40 @@ function renderQuestion() {
 
   const audioBtnContainer = document.getElementById('audioBtnContainer');
   const timerText = document.getElementById('timerText');
+  const hasPreAnswerAudio = Boolean(
+    (q.type === 'listening' && q.dialogue) ||
+    q.audio_question ||
+    (q.type === 'speaking' && q.audio_complete)
+  );
+
+  if (hasPreAnswerAudio) {
+    audioBtnContainer.classList.remove('hidden');
+  } else {
+    audioBtnContainer.classList.add('hidden');
+  }
 
   if (q.type === 'listening' && q.dialogue) {
-    audioBtnContainer.classList.remove('hidden');
     if (timerText) timerText.innerText = '🎧 対話音声を再生中...';
     playDialogueSpeech(q.dialogue, () => startCriticalTimer());
   } else if (!isBossMode && q.audio_question) {
-    audioBtnContainer.classList.remove('hidden');
     if (timerText) timerText.innerText = '🗣️ 英文を読み上げ中...';
     speakText(q.audio_question, () => startCriticalTimer());
   } else {
-    if (q.audio_complete) audioBtnContainer.classList.remove('hidden');
-    else audioBtnContainer.classList.add('hidden');
     startCriticalTimer();
+  }
+}
+
+function playCurrentAudio() {
+  const q = currentQueue[currentIndex];
+  if (!q) return;
+  const ensureTimerCallback = (!isAnswered && !timerGaugeInterval) ? () => startCriticalTimer() : null;
+
+  if ((isAnswered || q.type === 'speaking') && q.audio_complete) {
+    speakText(q.audio_complete, ensureTimerCallback);
+  } else if (q.type === 'listening' && q.dialogue) {
+    playDialogueSpeech(q.dialogue, ensureTimerCallback);
+  } else if (q.audio_question) {
+    speakText(q.audio_question, ensureTimerCallback);
   }
 }
 
@@ -2660,16 +2680,19 @@ function processAnswerResult(isCorrect, q) {
       showDamagePopup(`⚠️ 被弾! -${enemyDmg.toLocaleString()} HP`, false, false);
     }
 
-    if (q.id && !userData.weakList.includes(q.id)) {
-      userData.weakList.push(q.id);
+    if (q.id) {
+      if (!userData.weakList.includes(q.id)) {
+        userData.weakList.push(q.id);
+      }
+      // 殿堂入りしていた問題を間違えた場合は、殿堂入りから外して克服中へ戻す
+      userData.masteredList = userData.masteredList.filter(x => x !== q.id);
     }
 
-    feedbackIcon.innerText = '❌';
-    feedbackTitle.innerText = 'おしい！ 時空記録（解説）を確認しよう';
-    feedbackTitle.className = "text-sm md:text-base font-black text-rose-400";
-  }
-
   feedbackExplain.innerText = q.explain || '正解を確認して次へ進もう！';
+  const audioBtnContainer = document.getElementById('audioBtnContainer');
+  if (audioBtnContainer && (q.audio_complete || q.audio_question || q.dialogue)) {
+    audioBtnContainer.classList.remove('hidden');
+  }
   feedbackModal.classList.remove('hidden');
   setTimeout(() => {
     feedbackModal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -3040,6 +3063,9 @@ function renderWeakBookList() {
 }
 
 function removeWeakItem(id) {
+  const baseId = id.startsWith('v_ja_') ? id.replace('v_ja_', 'v_') : id;
+  if (userData.weakStats[id]) userData.weakStats[id].streak = 2;
+  if (userData.weakStats[baseId]) userData.weakStats[baseId].streak = 2;
   userData.weakList = userData.weakList.filter(item => item !== id);
   if (!userData.masteredList.includes(id)) userData.masteredList.push(id);
   saveData();
@@ -3047,6 +3073,9 @@ function removeWeakItem(id) {
 }
 
 function restoreWeakItem(id) {
+  const baseId = id.startsWith('v_ja_') ? id.replace('v_ja_', 'v_') : id;
+  if (userData.weakStats[id]) userData.weakStats[id].streak = 0;
+  if (userData.weakStats[baseId]) userData.weakStats[baseId].streak = 0;
   userData.masteredList = userData.masteredList.filter(item => item !== id);
   if (!userData.weakList.includes(id)) userData.weakList.push(id);
   saveData();
