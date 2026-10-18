@@ -10,6 +10,8 @@ let isDialogueSpeaking = false;
 let dialogueNextTimer = null;
 let activeUtterance = null;
 let speechTimeoutId = null;
+let speechInitTimerId = null;
+let postAnswerTimerId = null;
 let cachedVoices = [];
 
 function loadVoices() {
@@ -53,9 +55,10 @@ function speakText(text, onCompleteCallback) {
   }
   try {
     window.speechSynthesis.cancel();
+    clearTimeout(speechInitTimerId);
     clearTimeout(speechTimeoutId);
 
-    setTimeout(() => {
+    speechInitTimerId = setTimeout(() => {
       const uttr = new SpeechSynthesisUtterance(cleanText);
       activeUtterance = uttr;
       uttr.lang = 'en-US';
@@ -370,21 +373,26 @@ function normalizeMasterData() {
   const p1 = (typeof RAW_VOCAB_PART1 !== 'undefined') ? RAW_VOCAB_PART1 : [];
   const p2 = (typeof RAW_VOCAB_PART2 !== 'undefined') ? RAW_VOCAB_PART2 : [];
   if (p1.length > 0 || p2.length > 0) {
-    const seenWords = new Set();
-    const merged = [];
+    const wordMap = new Map();
     [...p1, ...p2].forEach(item => {
       let word = String(item[0] || '').trim();
       if (!word) return;
       if (!word.includes(' ') && /^[A-Z][a-z]+$/.test(word)) {
         word = word.toLowerCase();
       }
-      // 同スペル語の重複登録による図鑑100%到達不能バグを防止
-      if (!seenWords.has(word)) {
-        seenWords.add(word);
-        merged.push([word, item[1], item[2]]);
+      const meaning = String(item[1] || '').trim();
+      const pos = item[2] || '';
+      if (!wordMap.has(word)) {
+        wordMap.set(word, [word, meaning, pos]);
+      } else {
+        // 同スペルで別品詞の意味がある場合は意味を結合して消失を防ぐ
+        const existing = wordMap.get(word);
+        if (meaning && !existing[1].includes(meaning)) {
+          existing[1] = `${existing[1]} ／ ${meaning}`;
+        }
       }
     });
-    RAW_VOCAB_DATA = merged.slice(0, 800);
+    RAW_VOCAB_DATA = Array.from(wordMap.values());
   }
 
   if (typeof RAW_GRAMMAR_DATA !== 'undefined') {
@@ -421,6 +429,10 @@ function sanitizeUserData() {
   if (!Array.isArray(userData.masteredList)) userData.masteredList = [];
   if (!userData.weakStats || typeof userData.weakStats !== 'object') userData.weakStats = {};
   if (!Array.isArray(userData.vocabBook)) userData.vocabBook = [];
+  if (RAW_VOCAB_DATA.length > 0) {
+    const validWords = new Set(RAW_VOCAB_DATA.map(x => x[0]));
+    userData.vocabBook = [...new Set(userData.vocabBook)].filter(w => validWords.has(w));
+  }
   if (!Array.isArray(userData.unlockedEquips)) userData.unlockedEquips = [];
   if (!userData.equipLevels || typeof userData.equipLevels !== 'object') userData.equipLevels = {};
 
@@ -500,7 +512,8 @@ function checkDailyStreak() {
 function recordWeakStat(id, isCorrect) {
   if (!id) return;
   const baseId = id.startsWith('v_ja_') ? id.replace('v_ja_', 'v_') : id;
-  const targetIds = (id === baseId) ? [id] : [id, baseId];
+  const altId = baseId.startsWith('v_') ? baseId.replace('v_', 'v_ja_') : id;
+  const targetIds = [...new Set([id, baseId])];
 
   targetIds.forEach(targetId => {
     if (!userData.weakStats[targetId]) {
@@ -517,13 +530,17 @@ function recordWeakStat(id, isCorrect) {
     st.lastReviewed = Date.now();
   });
 
-  // 弱点リストに入っている問題で2回連続正解したら、自動的に「殿堂入り」へ昇格
-  const currentSt = userData.weakStats[id];
-  if (isCorrect && currentSt && currentSt.streak >= 2 && userData.weakList.includes(id)) {
-    userData.weakList = userData.weakList.filter(x => x !== id);
-    if (!userData.masteredList.includes(id)) {
-      userData.masteredList.push(id);
-    }
+  // 2回連続正解したら、英和(v_)・和英(v_ja_)の双方の弱点リストから自動で殿堂入りへ昇格
+  const baseSt = userData.weakStats[baseId];
+  if (isCorrect && baseSt && baseSt.streak >= 2) {
+    [id, baseId, altId].forEach(checkId => {
+      if (userData.weakList.includes(checkId)) {
+        userData.weakList = userData.weakList.filter(x => x !== checkId);
+        if (!userData.masteredList.includes(checkId)) {
+          userData.masteredList.push(checkId);
+        }
+      }
+    });
   }
 }
 
@@ -793,10 +810,11 @@ function selectSmartQuestions(masterArray, count, idPrefix = '') {
       else if (idPrefix === 'tri_') id = `tri_${item.base}`;
       else id = `${idPrefix}${idx}`;
     }
+    const jaId = (idPrefix === 'v_') ? `v_ja_${item[0]}` : null;
     const stat = userData.weakStats[id];
     let priority = 50 + Math.random() * 25;
 
-    if (userData.weakList.includes(id)) {
+    if (userData.weakList.includes(id) || (jaId && userData.weakList.includes(jaId))) {
       priority += 100;
     } else if (stat) {
       const daysSince = (now - (stat.lastReviewed || 0)) / DAY_MS;
@@ -977,6 +995,22 @@ function getQuizDataById(id) {
         explain: found.explain,
         audio_question: found.q,
         audio_complete: found.targetText
+      };
+    }
+  } else if (id.startsWith('tri_') && typeof RAW_IRREGULAR_VERBS !== 'undefined') {
+    const baseWord = id.replace(/^tri_(\d+_)?/, '');
+    const found = RAW_IRREGULAR_VERBS.find(x => x.base === baseWord);
+    if (found) {
+      return {
+        id: `tri_${found.base}`,
+        type: 'trinity',
+        q: `「${found.meaning}」の3変化を順番に斬れ！`,
+        sub: '⚡ ①原形 ➔ ②過去形 ➔ ③過去分詞 の順に3連タップ！',
+        forms: [found.base, found.past, found.pp],
+        pool: shuffleArray([found.base, found.past, found.pp, ...(found.dummies || ['played', 'went', 'gone']).slice(0, 3)]),
+        explain: `【${found.meaning}】の3変化\n① 原形: ${found.base}\n② 過去形: ${found.past}\n③ 過去分詞: ${found.pp}`,
+        audio_question: found.base,
+        audio_complete: `${found.base}, ${found.past}, ${found.pp}`
       };
     }
   } else if (id.startsWith('past_') && typeof ACTUAL_PAST_EXAM_DATA !== 'undefined') {
@@ -1176,16 +1210,22 @@ function startReadingDungeon() {
 function useReadingLoupe() {
   if (isAnswered) return;
   const q = currentQueue[currentIndex];
+  const btnLoupe = document.getElementById('btnUseLoupe');
   if (!q || !q.passage || !q.highlightSentence) {
     showNoticeModal('モノクル不要', '🔍', 'この問題では真理のモノクルは使用できません。');
     return;
   }
+  if (btnLoupe && btnLoupe.dataset.used === 'true') return;
   if (userData.inventory.loupe <= 0) {
     showNoticeModal('モノクル不足', '🔍', '「真理のモノクル」がありません！工房ショップで交換できます。');
     return;
   }
   userData.inventory.loupe--;
-  updateUiState();
+  if (btnLoupe) {
+    btnLoupe.dataset.used = 'true';
+    btnLoupe.classList.add('opacity-40', 'pointer-events-none');
+  }
+  saveData();
 
   const passageEl = document.getElementById('readingPassageText');
   if (passageEl && q.passage.includes(q.highlightSentence)) {
@@ -1407,13 +1447,18 @@ function toggleSpeechRecognition() {
 let audioSourceNode = null;
 let audioAnalyserNode = null;
 let isFallbackActivating = false;
+let sttWatchdogTimerId = null;
 
 function stopMicRecognition() {
   isMicListening = false;
   isFallbackActivating = false;
+  clearTimeout(sttWatchdogTimerId);
+  sttWatchdogTimerId = null;
   if (recognitionInstance) {
     try {
       recognitionInstance.onend = null;
+      recognitionInstance.onerror = null;
+      recognitionInstance.onresult = null;
       recognitionInstance.abort();
     } catch (e) {}
     recognitionInstance = null;
@@ -1475,6 +1520,9 @@ async function startMicRecognition() {
     return;
   }
 
+  // 非同期待機中に解答済み、またはクイズ画面から離脱していた場合は即座に中断
+  if (isAnswered || document.getElementById('viewQuiz')?.classList.contains('hidden')) return;
+
   isMicListening = true;
   if (waveEl) waveEl.classList.remove('hidden');
   if (btnMic) {
@@ -1498,7 +1546,8 @@ async function startMicRecognition() {
     if (recText) recText.innerText = '👂 リアルタイム聞き取り中... 光っていない単語を声に出そう！';
 
     let hasSttResponded = false;
-    const sttWatchdog = setTimeout(() => {
+    clearTimeout(sttWatchdogTimerId);
+    sttWatchdogTimerId = setTimeout(() => {
       if (isMicListening && !hasSttResponded && !isAnswered) {
         if (recognitionInstance) {
           recognitionInstance.onend = null;
@@ -1511,7 +1560,7 @@ async function startMicRecognition() {
 
     recognitionInstance.onresult = (event) => {
       hasSttResponded = true;
-      clearTimeout(sttWatchdog);
+      clearTimeout(sttWatchdogTimerId);
       if (isAnswered) return;
 
       let combinedTranscript = '';
@@ -1549,7 +1598,7 @@ async function startMicRecognition() {
     };
 
     recognitionInstance.onerror = () => {
-      clearTimeout(sttWatchdog);
+      clearTimeout(sttWatchdogTimerId);
       if (recognitionInstance) {
         recognitionInstance.onend = null;
         try { recognitionInstance.abort(); } catch (e) {}
@@ -1585,7 +1634,7 @@ async function activateVolumeFallback(q) {
     micStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
-    if (!isMicListening || isAnswered) {
+    if (!isMicListening || isAnswered || document.getElementById('viewQuiz')?.classList.contains('hidden')) {
       micStream.getTracks().forEach(t => t.stop());
       micStream = null;
       isFallbackActivating = false;
@@ -1660,7 +1709,8 @@ function checkAndTriggerSpeakingClear(q, transcript) {
     updateSpeakingMeter();
     const recText = document.getElementById('speakingRecognizedText');
     if (recText) recText.innerText = `⚡ 言霊充填完了（100%）！ アルティメット詠唱発動！！`;
-    setTimeout(() => {
+    clearTimeout(postAnswerTimerId);
+    postAnswerTimerId = setTimeout(() => {
       processAnswerResult(true, q);
     }, 350);
   }
@@ -1868,8 +1918,6 @@ function startBossBattleWithStage(lv) {
     return;
   }
 
-  userData.bossTickets -= 1;
-  saveData();
   closeBossSelectModal();
 
   normalizeMasterData();
@@ -1934,7 +1982,9 @@ function stopBattleTimers() {
   }
   isDialogueSpeaking = false;
   clearTimeout(dialogueNextTimer);
+  clearTimeout(speechInitTimerId);
   clearTimeout(speechTimeoutId);
+  clearTimeout(postAnswerTimerId);
   clearTimeout(fallbackTimerId);
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   stopMicRecognition();
@@ -2092,6 +2142,10 @@ function renderQuestion() {
 
   const passageBox = document.getElementById('readingPassageBox');
   const btnLoupe = document.getElementById('btnUseLoupe');
+  if (btnLoupe) {
+    btnLoupe.dataset.used = 'false';
+    btnLoupe.classList.remove('opacity-40', 'pointer-events-none');
+  }
   if (q.passage) {
     passageBox.classList.remove('hidden');
     document.getElementById('readingPassageTitle').innerText = q.passageTitle || '📜 パッセージ';
@@ -2109,11 +2163,16 @@ function renderQuestion() {
   const trinityBox = document.getElementById('trinitySlashBox');
   const btnHint = document.getElementById('btnUseHint');
 
+  if (btnHint) {
+    btnHint.dataset.used = 'false';
+    btnHint.classList.remove('opacity-40', 'pointer-events-none');
+    btnHint.classList.add('hidden');
+  }
+
   optContainer.classList.add('hidden');
   writingBox.classList.add('hidden');
   speakingBox.classList.add('hidden');
   trinityBox.classList.add('hidden');
-  if (btnHint) btnHint.classList.add('hidden');
 
   if (q.type === 'writing') {
     writingBox.classList.remove('hidden');
@@ -2166,14 +2225,20 @@ function playCurrentAudio() {
 function use5050Hint() {
   if (isAnswered) return;
   const q = currentQueue[currentIndex];
+  const btnHint = document.getElementById('btnUseHint');
   if (!q || !q.options) return;
+  if (btnHint && btnHint.dataset.used === 'true') return;
 
   if (userData.inventory.hint <= 0) {
     showNoticeModal('羅針盤不足', '💡', '「時空ヒントの羅針盤」がありません！工房ショップで交換できます。');
     return;
   }
   userData.inventory.hint--;
-  updateUiState();
+  if (btnHint) {
+    btnHint.dataset.used = 'true';
+    btnHint.classList.add('opacity-40', 'pointer-events-none');
+  }
+  saveData();
 
   const buttons = Array.from(document.getElementById('quizOptions').children);
   const wrongIndices = [];
@@ -2186,7 +2251,6 @@ function use5050Hint() {
     buttons[idx].classList.add('opacity-25');
   });
 
-  // 文法問題で日本語訳ヒントがある場合はサブテキストに表示する
   if (q.translationHint) {
     const subEl = document.getElementById('quizSubText');
     if (subEl) subEl.innerText = `💡 ヒント ${q.translationHint}`;
@@ -2262,7 +2326,6 @@ function processAnswerResult(isCorrect, q) {
     const isPerfectFinalBlow = (quizScore === currentQueue.length && currentIndex === currentQueue.length - 1);
 
     if (currentMode === 'weakRetry' || (!isBossMode && isPerfectFinalBlow && enemyCurHp > 0)) {
-      // 通常クエスト・訓練で全問正解（100点満点）を達成した場合は確定で敵HPを削り切る
       dmg = Math.max(enemyCurHp, pStats.atk);
       enemyCurHp = 0;
     } else {
@@ -2304,7 +2367,8 @@ function processAnswerResult(isCorrect, q) {
     feedbackTitle.className = "text-sm md:text-base font-black text-cyan-300";
 
     if (q.audio_complete) {
-      setTimeout(() => speakText(q.audio_complete), 300);
+      clearTimeout(postAnswerTimerId);
+      postAnswerTimerId = setTimeout(() => speakText(q.audio_complete), 300);
     }
   } else {
     playSE('wrong');
@@ -2314,7 +2378,6 @@ function processAnswerResult(isCorrect, q) {
       playBGM(isBossMode ? 'boss' : 'battle');
     }
 
-    // すでに敵HPを0（撃破済み）にしている場合は、残り問題で間違えても被弾しない
     if (enemyCurHp <= 0) {
       showDamagePopup(`🛡️ 撃破済み（被弾なし）`, false, false);
     } else {
@@ -2330,7 +2393,7 @@ function processAnswerResult(isCorrect, q) {
       showDamagePopup(`⚠️ 被弾! -${enemyDmg.toLocaleString()} HP`, false, false);
     }
 
-    if (q.id && !q.id.startsWith('tri_') && !userData.weakList.includes(q.id)) {
+    if (q.id && !userData.weakList.includes(q.id)) {
       userData.weakList.push(q.id);
     }
 
@@ -2381,6 +2444,11 @@ function proceedFinishSession() {
   document.getElementById('viewQuiz').classList.add('hidden');
   document.getElementById('viewResult').classList.remove('hidden');
   playBGM('result');
+
+  // ボス戦で1問以上解答してリザルトへ到達した時点でチケットを1枚消費（誤タップ帰還時のチケット消失を防止）
+  if (isBossMode && answeredQuestionsCount > 0 && userData.bossTickets > 0) {
+    userData.bossTickets -= 1;
+  }
 
   let earnedExp = 0;
   let earnedGems = 0;
@@ -2987,13 +3055,25 @@ function importData(event) {
   reader.onload = (e) => {
     try {
       const imported = JSON.parse(e.target.result);
-      userData = { ...userData, ...imported };
+      if (!imported || typeof imported !== 'object') throw new Error('Invalid JSON');
+      userData = {
+        ...userData,
+        ...imported,
+        questRotation: { ...userData.questRotation, ...(imported.questRotation || {}) },
+        dailyDone: { ...userData.dailyDone, ...(imported.dailyDone || {}) },
+        inventory: { ...userData.inventory, ...(imported.inventory || {}) },
+        equipped: { ...userData.equipped, ...(imported.equipped || {}) },
+        weakStats: { ...userData.weakStats, ...(imported.weakStats || {}) },
+        equipLevels: { ...userData.equipLevels, ...(imported.equipLevels || {}) }
+      };
       sanitizeUserData();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
       updateUiState();
       showNoticeModal('復元完了', '📥', 'セーブデータの復元が完了しました！', () => location.reload());
     } catch (err) {
       showNoticeModal('エラー', '⚠️', '有効なバックアップファイルではありません。');
+    } finally {
+      event.target.value = '';
     }
   };
   reader.readAsText(file);
