@@ -424,9 +424,9 @@
             </div>
 
             <!-- 📜 長文読解・面接カード用のパッセージパネル -->
-            <div id="readingPassageBox" class="hidden mb-3 bg-slate-950/85 border-2 border-amber-500/60 rounded-2xl p-3.5 text-left max-h-64 md:max-h-80 overflow-y-auto shadow-inner">
-              <div id="readingPassageTitle" class="text-xs font-black text-amber-300 border-b border-amber-500/40 pb-1 mb-2">📜 古代遺跡パッセージ</div>
-              <div id="readingPassageText" class="text-sm md:text-base text-slate-100 leading-relaxed whitespace-pre-line font-medium"></div>
+            <div id="readingPassageBox" class="hidden mb-2.5 bg-slate-950/85 border-2 border-amber-500/60 rounded-2xl p-3 text-left max-h-44 md:max-h-52 overflow-y-auto shadow-inner">
+              <div id="readingPassageTitle" class="text-xs font-black text-amber-300 border-b border-amber-500/40 pb-1 mb-1.5">📜 古代遺跡パッセージ</div>
+              <div id="readingPassageText" class="text-xs md:text-sm text-slate-100 leading-relaxed whitespace-pre-line font-medium"></div>
             </div>
 
             <div class="text-center min-h-[48px] flex items-center justify-center px-2 mb-1.5">
@@ -512,18 +512,18 @@
           </div>
 
           <!-- 正誤判定＆解説フィードバックパネル -->
-          <div id="quizFeedback" class="hidden bg-teal-950 border-2 border-amber-400 p-4 rounded-3xl space-y-2.5 shadow-2xl">
+          <div id="quizFeedback" class="hidden bg-teal-950 border-2 border-amber-400 p-3.5 rounded-3xl space-y-2 shadow-2xl">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span id="feedbackIcon" class="text-2xl">⭕</span>
                 <h4 id="feedbackTitle" class="text-sm md:text-base font-black text-amber-300"></h4>
               </div>
-              <button onclick="playRecordedUserVoice()" class="text-[11px] bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-teal-700 px-2.5 py-1 rounded-xl font-bold">
-                🎤 録音再生
+              <button id="btnPlayRecordedVoice" onclick="playRecordedUserVoice()" class="hidden text-[11px] bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-teal-700 px-2.5 py-1 rounded-xl font-bold transition active:scale-95">
+                🎤 自分の発音を聞く
               </button>
             </div>
-            <p id="feedbackExplain" class="text-xs md:text-sm text-slate-100 leading-relaxed whitespace-pre-line break-words max-h-56 overflow-y-auto bg-slate-950/85 p-3 rounded-2xl border border-teal-800"></p>
-            <button onclick="nextQuestion()" class="w-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-lg hover:brightness-110 active:scale-95 transition">
+            <p id="feedbackExplain" class="text-xs md:text-sm text-slate-100 leading-relaxed whitespace-pre-line break-words max-h-36 md:max-h-44 overflow-y-auto bg-slate-950/85 p-2.5 rounded-2xl border border-teal-800"></p>
+            <button onclick="nextQuestion()" class="w-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black py-2.5 rounded-2xl text-sm shadow-lg hover:brightness-110 active:scale-95 transition">
               つぎへ進む ➔
             </button>
           </div>
@@ -532,7 +532,7 @@
       </div>
 
     </div>
-
+    
     <!-- ==================== 3. リザルト画面 ==================== -->
     <div id="viewResult" class="hidden max-w-lg mx-auto space-y-4 text-center py-4">
       <div class="bg-gradient-to-b from-teal-900 via-slate-900 to-slate-950 border-2 border-cyan-400 rounded-3xl p-6 shadow-2xl space-y-4 glow-chrono" id="resultCardBox">
@@ -773,40 +773,40 @@
       <div class="space-y-2 text-xs md:text-sm" id="normalDifficultyList">
         <button onclick="startNormalModeWithDiff(1)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-teal-700 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
-            <div class="font-black text-emerald-400">🌱 Rank 1：新米探索者（推奨 Lv.1〜25）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 低 / 攻撃: 20（基礎固め・報酬 1.0倍）</div>
+            <div class="font-black text-emerald-400">🌱 Rank 1：新米探索者（推奨 Lv.1〜15）</div>
+            <div class="text-[11px] text-slate-300">敵HP: 低 / 攻撃: 18（基礎固め・報酬 1.0倍）</div>
           </div>
           <span class="text-xs bg-emerald-950 text-emerald-300 font-bold px-3 py-1 rounded-xl border border-emerald-700">出撃</span>
         </button>
 
         <button onclick="startNormalModeWithDiff(2)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-teal-700 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
-            <div class="font-black text-cyan-400">🌊 Rank 2：時空の騎士（推奨 Lv.25〜60）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 中 / 攻撃: 75（報酬 1.8倍）</div>
+            <div class="font-black text-cyan-400">🌊 Rank 2：時空の騎士（推奨 Lv.15〜45）</div>
+            <div class="text-[11px] text-slate-300">敵HP: 中 / 攻撃: 55（報酬 1.8倍）</div>
           </div>
           <span class="text-xs bg-cyan-950 text-cyan-300 font-bold px-3 py-1 rounded-xl border border-cyan-700">出撃</span>
         </button>
 
         <button onclick="startNormalModeWithDiff(3)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-teal-700 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
-            <div class="font-black text-amber-400">⚡ Rank 3：クロノマスター（推奨 Lv.60〜110）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 高 / 攻撃: 190（報酬 3.0倍）</div>
+            <div class="font-black text-amber-400">⚡ Rank 3：クロノマスター（推奨 Lv.45〜90）</div>
+            <div class="text-[11px] text-slate-300">敵HP: 高 / 攻撃: 140（報酬 3.0倍）</div>
           </div>
           <span class="text-xs bg-amber-950 text-amber-300 font-bold px-3 py-1 rounded-xl border border-amber-700">出撃</span>
         </button>
 
         <button onclick="startNormalModeWithDiff(4)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-rose-500/60 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
-            <div class="font-black text-rose-400">🔥 Rank 4：神話の超越者（推奨 Lv.110〜160）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 極高 / 攻撃: 420（報酬 5.0倍）</div>
+            <div class="font-black text-rose-400">🔥 Rank 4：神話の超越者（推奨 Lv.90〜140）</div>
+            <div class="text-[11px] text-slate-300">敵HP: 極高 / 攻撃: 320（報酬 5.0倍）</div>
           </div>
           <span class="text-xs bg-rose-950 text-rose-300 font-black px-3 py-1 rounded-xl border border-rose-500">出撃</span>
         </button>
 
         <button onclick="startNormalModeWithDiff(5)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-purple-400 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left glow-gold">
           <div>
-            <div class="font-black text-purple-300">🌌 Rank 5：時空神の領域（推奨 Lv.160〜200）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 神話級 / 攻撃: 850（報酬 8.0倍）</div>
+            <div class="font-black text-purple-300">🌌 Rank 5：時空神の領域（推奨 Lv.140〜200）</div>
+            <div class="text-[11px] text-slate-300">敵HP: 神話級 / 攻撃: 680（報酬 8.0倍）</div>
           </div>
           <span class="text-xs bg-purple-950 text-amber-300 font-black px-3 py-1 rounded-xl border border-amber-400">出撃</span>
         </button>
