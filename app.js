@@ -219,6 +219,9 @@ function playBGM(scene) {
           gain.connect(actx.destination);
           gain.gain.setValueAtTime(track.vol, actx.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (track.speed / 1000) * 0.82);
+          osc.onended = () => {
+            try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+          };
           osc.start(actx.currentTime);
           osc.stop(actx.currentTime + (track.speed / 1000));
         }
@@ -243,6 +246,9 @@ function playSE(type) {
     const gain = actx.createGain();
     osc.connect(gain);
     gain.connect(actx.destination);
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+    };
 
     if (type === 'correct') {
       osc.type = 'sine';
