@@ -803,6 +803,33 @@ function updateUiState() {
   updateRotBtn('btnRotGrammar', 'badgeRotGrammar', userData.questRotation.grammar);
   updateRotBtn('btnRotListening', 'badgeRotListening', userData.questRotation.listening);
 
+  let guildDoneCount = 0;
+  if (userData.guildRotation.reading) guildDoneCount++;
+  if (userData.guildRotation.writing) guildDoneCount++;
+  if (userData.guildRotation.speaking) guildDoneCount++;
+  if (userData.guildRotation.trinity) guildDoneCount++;
+  setText('guildRotationBadge', `${guildDoneCount}/4制覇`);
+
+  const updateGuildBtn = (btnId, badgeId, isDone, defaultLabel, defaultColorClass) => {
+    const btn = document.getElementById(btnId);
+    const badge = document.getElementById(badgeId);
+    if (!btn || !badge) return;
+    if (isDone) {
+      badge.innerText = "✓ 制覇済";
+      badge.className = "text-[9px] font-black bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-600";
+      btn.classList.add('opacity-70');
+    } else {
+      badge.innerText = defaultLabel;
+      badge.className = defaultColorClass;
+      btn.classList.remove('opacity-70');
+    }
+  };
+
+  updateGuildBtn('btnGuildReading', 'badgeGuildReading', userData.guildRotation.reading, '🌟特別報酬', 'text-[9px] font-black bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40');
+  updateGuildBtn('btnGuildWriting', 'badgeGuildWriting', userData.guildRotation.writing, '🌟特別報酬', 'text-[9px] font-black bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/40');
+  updateGuildBtn('btnGuildSpeaking', 'badgeGuildSpeaking', userData.guildRotation.speaking, '🌟特別報酬', 'text-[9px] font-black bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/40');
+  updateGuildBtn('btnGuildTrinity', 'badgeGuildTrinity', userData.guildRotation.trinity, '🌟特別報酬', 'text-[9px] font-black bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/40');
+
   const btnWeak = document.getElementById('btnRotWeakBattle');
   const badgeWeak = document.getElementById('badgeRotWeak');
   if (btnWeak && badgeWeak) {
@@ -820,18 +847,27 @@ function updateUiState() {
   }
 
   const totalV = RAW_VOCAB_DATA.length || 800;
+  const vocabCount = userData.vocabBook.length;
+  const maxBossCleared = userData.bossClearedLevels.length > 0 ? Math.max(...userData.bossClearedLevels) : 0;
+
   setText('statTotalAnswers', `${userData.totalAnswered}問`);
-  setText('statVocabRate', `${userData.vocabBook.length} / ${totalV}`);
+  setText('statVocabRate', `${vocabCount} / ${totalV}`);
   const acc = userData.totalAnswered > 0 ? Math.round((userData.totalCorrect / userData.totalAnswered) * 100) : 0;
   setText('statAccuracy', `(${acc}%)`);
 
-  let passRate = 'データ解析中（20問〜）';
-  if (userData.totalAnswered >= 20) {
-    if (acc >= 80 && userData.vocabBook.length >= 200) passRate = '👑 3級余裕合格圏 (SS判定)';
-    else if (acc >= 72) passRate = '💮 3級合格圏内 (S判定)';
-    else if (acc >= 62) passRate = '✨ 合格可能性大 (A判定)';
-    else if (acc >= 50) passRate = '📈 着実に成長中 (B判定)';
-    else passRate = '🔥 基礎構築フェーズ (C判定)';
+  let passRate = `データ解析中（あと${Math.max(0, 50 - userData.totalAnswered)}問）`;
+  if (userData.totalAnswered >= 50) {
+    if (acc >= 80 && vocabCount >= 600 && maxBossCleared >= 12) {
+      passRate = '👑 3級余裕合格圏 (SS判定)';
+    } else if (acc >= 72 && vocabCount >= 400 && maxBossCleared >= 7) {
+      passRate = '💮 3級合格圏内 (S判定)';
+    } else if (acc >= 65 && vocabCount >= 200 && maxBossCleared >= 3) {
+      passRate = '✨ 合格可能性大 (A判定)';
+    } else if (acc >= 55 && vocabCount >= 80) {
+      passRate = '📈 着実に成長中 (B判定)';
+    } else {
+      passRate = '🔥 基礎構築フェーズ (C判定)';
+    }
   }
   setText('statPassRate', passRate);
 
@@ -866,7 +902,12 @@ function selectSmartQuestions(masterArray, count, idPrefix = '') {
   const DAY_MS = 1000 * 60 * 60 * 24;
   const intervals = [1, 3, 7, 14, 30];
 
-  const scoredPool = masterArray.map((item, idx) => {
+  const weakBucket = [];
+  const dueBucket = [];
+  const unseenBucket = [];
+  const recentBucket = [];
+
+  masterArray.forEach((item, idx) => {
     let id = item.id;
     if (!id) {
       if (idPrefix === 'v_') id = `v_${item[0]}`;
@@ -874,25 +915,52 @@ function selectSmartQuestions(masterArray, count, idPrefix = '') {
       else id = `${idPrefix}${idx}`;
     }
     const jaId = (idPrefix === 'v_') ? `v_ja_${item[0]}` : null;
+    const isWeak = userData.weakList.includes(id) || (jaId && userData.weakList.includes(jaId));
     const stat = userData.weakStats[id];
-    let priority = 50 + Math.random() * 25;
 
-    if (userData.weakList.includes(id) || (jaId && userData.weakList.includes(jaId))) {
-      priority += 100;
-    } else if (stat) {
+    if (isWeak) {
+      weakBucket.push({ item, score: 100 + Math.random() * 20 });
+    } else if (!stat || !stat.attempts) {
+      unseenBucket.push({ item, score: 50 + Math.random() * 20 });
+    } else {
       const daysSince = (now - (stat.lastReviewed || 0)) / DAY_MS;
       const targetDays = intervals[Math.min(stat.cleared, intervals.length - 1)];
       if (daysSince >= targetDays) {
-        priority += 80;
+        dueBucket.push({ item, score: 80 + Math.min(30, daysSince - targetDays) + Math.random() * 15 });
       } else {
-        priority -= 35;
+        recentBucket.push({ item, score: daysSince + Math.random() * 10 });
       }
     }
-    return { item, priority };
   });
 
-  scoredPool.sort((a, b) => b.priority - a.priority);
-  return shuffleArray(scoredPool.slice(0, count).map(x => x.item));
+  weakBucket.sort((a, b) => b.score - a.score);
+  dueBucket.sort((a, b) => b.score - a.score);
+  unseenBucket.sort((a, b) => b.score - a.score);
+  recentBucket.sort((a, b) => b.score - a.score);
+
+  // 弱点・復習期限到来・未学習新規の3枠をバランス配分し、特定問題の固定化や新規問題の飢餓を防止
+  const maxWeak = Math.max(1, Math.round(count * 0.35));
+  const maxDue = Math.max(1, Math.round(count * 0.35));
+
+  const picked = [];
+  picked.push(...weakBucket.slice(0, maxWeak).map(x => x.item));
+  picked.push(...dueBucket.slice(0, maxDue).map(x => x.item));
+
+  const needFromUnseen = count - picked.length;
+  if (needFromUnseen > 0) {
+    picked.push(...unseenBucket.slice(0, needFromUnseen).map(x => x.item));
+  }
+
+  if (picked.length < count) {
+    const fallbackPool = [
+      ...dueBucket.slice(maxDue).map(x => x.item),
+      ...weakBucket.slice(maxWeak).map(x => x.item),
+      ...recentBucket.map(x => x.item)
+    ];
+    picked.push(...fallbackPool.slice(0, count - picked.length));
+  }
+
+  return shuffleArray(picked);
 }
 
 function inferVocabCategory(item) {
@@ -1209,21 +1277,30 @@ function startWeakBattle() {
   currentMode = 'weakBattle';
 
   currentQueue = [];
+  const usedIds = new Set();
+  const pushUniqueQuiz = (q) => {
+    if (!q) return;
+    const baseKey = q.rawWord ? `v_${q.rawWord}` : q.id;
+    if (!usedIds.has(baseKey)) {
+      usedIds.add(baseKey);
+      currentQueue.push(q);
+    }
+  };
+
   if (userData.weakList.length > 0) {
-    shuffleArray(userData.weakList).slice(0, 5).forEach(id => {
-      const q = getQuizDataById(id);
-      if (q) currentQueue.push(q);
+    shuffleArray(userData.weakList).forEach(id => {
+      if (currentQueue.length < 5) pushUniqueQuiz(getQuizDataById(id));
     });
   }
   if (currentQueue.length < 5 && userData.masteredList.length > 0) {
-    shuffleArray(userData.masteredList).slice(0, 5 - currentQueue.length).forEach(id => {
-      const q = getQuizDataById(id);
-      if (q) currentQueue.push(q);
+    shuffleArray(userData.masteredList).forEach(id => {
+      if (currentQueue.length < 5) pushUniqueQuiz(getQuizDataById(id));
     });
   }
-  while (currentQueue.length < 5 && typeof RAW_GRAMMAR_DATA !== 'undefined') {
-    const randItem = RAW_GRAMMAR_DATA[Math.floor(Math.random() * RAW_GRAMMAR_DATA.length)];
-    currentQueue.push(generateGrammarQuiz(randItem));
+  if (currentQueue.length < 5 && typeof RAW_GRAMMAR_DATA !== 'undefined') {
+    shuffleArray(RAW_GRAMMAR_DATA).forEach(item => {
+      if (currentQueue.length < 5) pushUniqueQuiz(generateGrammarQuiz(item));
+    });
   }
   currentQueue = shuffleArray(currentQueue);
   startSession();
@@ -1241,13 +1318,23 @@ function startGuerrillaBattle() {
   currentMode = 'guerrilla';
 
   currentQueue = [];
-  shuffleArray(userData.masteredList).slice(0, 5).forEach(id => {
-    const q = getQuizDataById(id);
-    if (q) currentQueue.push(q);
+  const usedIds = new Set();
+  const pushUniqueQuiz = (q) => {
+    if (!q) return;
+    const baseKey = q.rawWord ? `v_${q.rawWord}` : q.id;
+    if (!usedIds.has(baseKey)) {
+      usedIds.add(baseKey);
+      currentQueue.push(q);
+    }
+  };
+
+  shuffleArray(userData.masteredList).forEach(id => {
+    if (currentQueue.length < 5) pushUniqueQuiz(getQuizDataById(id));
   });
-  while (currentQueue.length < 5 && RAW_VOCAB_DATA.length > 0) {
-    const randV = RAW_VOCAB_DATA[Math.floor(Math.random() * RAW_VOCAB_DATA.length)];
-    currentQueue.push(generateVocabQuiz(randV));
+  if (currentQueue.length < 5 && RAW_VOCAB_DATA.length > 0) {
+    shuffleArray(RAW_VOCAB_DATA).forEach(item => {
+      if (currentQueue.length < 5) pushUniqueQuiz(generateVocabQuiz(item));
+    });
   }
   startSession();
 }
@@ -1792,16 +1879,23 @@ function startVoiceRecording(stream) {
   if (!('MediaRecorder' in window) || !stream) return;
   try {
     recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
     mediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) recordedChunks.push(e.data);
     };
     mediaRecorder.onstop = () => {
       if (recordedChunks.length > 0) {
-        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+        if (recordedAudioUrl) {
+          try { URL.revokeObjectURL(recordedAudioUrl); } catch (e) {}
+        }
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
         recordedAudioUrl = URL.createObjectURL(blob);
         const btnRec = document.getElementById('btnPlayRecordedVoice');
-        if (btnRec && isAnswered) btnRec.classList.remove('hidden');
+        if (btnRec) btnRec.classList.remove('hidden');
       }
     };
     mediaRecorder.start();
@@ -2659,6 +2753,7 @@ function proceedFinishSession() {
     if (currentBossStage.lv === 15 && !userData.hasSeenTrueEnding) {
       userData.hasSeenTrueEnding = true;
       userData.gems += 800;
+      document.getElementById('viewResult').classList.add('hidden');
       addExp(25000, () => showTrueEndingModal());
       return;
     }
@@ -2670,6 +2765,7 @@ function proceedFinishSession() {
       userData.hasSeenEnding = true;
       userData.bossUnlockedLevel = 15;
       userData.gems += earnedGems;
+      document.getElementById('viewResult').classList.add('hidden');
       addExp(earnedExp, () => showEndingModal());
       return;
     }
@@ -3237,6 +3333,10 @@ function setNavigationVisibility(isVisible) {
 }
 
 function hideAllViews() {
+  if (recordedAudioUrl) {
+    try { URL.revokeObjectURL(recordedAudioUrl); } catch (e) {}
+    recordedAudioUrl = null;
+  }
   [
     'viewHome', 'viewQuiz', 'viewResult', 'viewShop',
     'viewParent', 'viewBook', 'viewWeakBook',
@@ -3350,6 +3450,10 @@ document.addEventListener('pointerdown', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     clearTimeout(bgmTimer);
+    isDialogueSpeaking = false;
+    clearTimeout(dialogueNextTimer);
+    clearTimeout(speechInitTimerId);
+    clearTimeout(speechTimeoutId);
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (activeRecordedAudio) {
       try { activeRecordedAudio.pause(); } catch (e) {}
@@ -3366,9 +3470,15 @@ document.addEventListener('visibilitychange', () => {
     if (actx && actx.state === 'suspended') {
       try { actx.resume(); } catch (e) {}
     }
+    const isQuizVisible = !document.getElementById('viewQuiz')?.classList.contains('hidden');
+    const isResultVisible = !document.getElementById('viewResult')?.classList.contains('hidden');
+
+    // バトル中の音声読み上げ待機中にスリープした場合、復帰時に制限時間タイマーが停止したままになるのを防止
+    if (isQuizVisible && !isAnswered && !timerGaugeInterval && currentQueue.length > 0) {
+      startCriticalTimer();
+    }
+
     if (isBgmEnabled) {
-      const isQuizVisible = !document.getElementById('viewQuiz')?.classList.contains('hidden');
-      const isResultVisible = !document.getElementById('viewResult')?.classList.contains('hidden');
       if (isQuizVisible) playBGM(isBossMode ? 'boss' : (isFeverMode ? 'fever' : 'battle'));
       else if (isResultVisible) playBGM('result');
       else playBGM('home');
