@@ -551,10 +551,24 @@ function recordWeakStat(id, isCorrect) {
   }
 }
 
+function getEquipRequiredLevel(equipObj) {
+  if (!equipObj) return 1;
+  if (equipObj.reqLv) return equipObj.reqLv;
+  if (equipObj.rank.includes('ミシック')) return 110;
+  if (equipObj.rank.includes('レジェンド')) return 70;
+  if (equipObj.rank.includes('スーパーレア')) return 35;
+  if (equipObj.rank.includes('レア')) return 12;
+  return 1;
+}
+
 function getEquipBonusVal(equipObj) {
   if (!equipObj) return 0;
   const plusLv = Math.min(99, userData.equipLevels[equipObj.id] || 0);
-  return Math.round(equipObj.val * (1 + plusLv * 0.18));
+  const rawVal = equipObj.val * (1 + plusLv * 0.18);
+  // プレイヤーの現在レベルに応じた武具の同調率（オーバースペック装備による序盤のバランス崩壊を防止）
+  const reqLv = getEquipRequiredLevel(equipObj);
+  const syncRate = userData.level >= reqLv ? 1.0 : Math.max(0.08, userData.level / reqLv);
+  return Math.round(rawVal * syncRate);
 }
 
 function calculatePlayerStats() {
@@ -1680,7 +1694,7 @@ function startVolumeBasedKaraoke(stream, q) {
   if (!actx || !stream) return;
   const recText = document.getElementById('speakingRecognizedText');
   if (recText) {
-    recText.innerText = '🔥 言霊ボイスパワー感知モード！ 元気よく最後まで声に出して読もう！';
+    recText.innerText = '🔥 言霊ボイスパワー感知モード！ 最後の単語まで元気よく声に出して読もう！';
   }
 
   try {
@@ -1691,7 +1705,7 @@ function startVolumeBasedKaraoke(stream, q) {
     const dataArray = new Uint8Array(audioAnalyserNode.frequencyBinCount);
 
     let speakingTicks = 0;
-    const ticksPerWord = 4;
+    const ticksPerWord = 6; // 実際の音読スピードに合わせて1単語あたりの発声時間を適正化
 
     if (volumeCheckInterval) clearInterval(volumeCheckInterval);
     volumeCheckInterval = setInterval(() => {
@@ -1705,7 +1719,7 @@ function startVolumeBasedKaraoke(stream, q) {
       for (let i = 2; i < 40; i++) sum += dataArray[i];
       const avgVolume = sum / 38;
 
-      if (avgVolume > 20) {
+      if (avgVolume > 22) {
         speakingTicks++;
         if (speakingTicks >= ticksPerWord) {
           speakingTicks = 0;
@@ -1718,14 +1732,21 @@ function startVolumeBasedKaraoke(stream, q) {
           }
         }
       }
-    }, 85);
+    }, 90);
   } catch (e) {}
 }
 
 function checkAndTriggerSpeakingClear(q, transcript) {
   const pct = updateSpeakingMeter();
-  const kwHits = (q.keywords || []).filter(kw => transcript.toLowerCase().includes(kw.toLowerCase())).length;
-  const isAutoClear = (pct >= 75) || (transcript && pct >= 60) || (q.keywords && q.keywords.length > 0 && kwHits >= Math.min(2, q.keywords.length) && pct >= 45);
+  const len = karaokeTokens.length;
+  // 文末（最後の単語、または最後から2番目の単語）までしっかり到達しているかチェック
+  const isEndReached = len > 0 && (
+    karaokeTokens[len - 1].matched ||
+    (len >= 3 && karaokeTokens[len - 2].matched && pct >= 85)
+  );
+
+  // 途中クリアを防止：全体の85%以上が光り、かつ文末まで読み切った場合（または100%到達時）のみ自動発動
+  const isAutoClear = (pct >= 100) || (pct >= 85 && isEndReached);
 
   if (isAutoClear) {
     stopMicRecognition();
@@ -1733,11 +1754,11 @@ function checkAndTriggerSpeakingClear(q, transcript) {
     renderKaraokeTokens();
     updateSpeakingMeter();
     const recText = document.getElementById('speakingRecognizedText');
-    if (recText) recText.innerText = `⚡ 言霊充填完了（100%）！ アルティメット詠唱発動！！`;
+    if (recText) recText.innerText = `⚡ 言霊充填完了（100%）！ 最後まで見事に詠唱成功！！`;
     clearTimeout(postAnswerTimerId);
     postAnswerTimerId = setTimeout(() => {
       processAnswerResult(true, q);
-    }, 350);
+    }, 450);
   }
 }
 
@@ -1940,6 +1961,69 @@ function closeBossSelectModal() {
   if (modal) modal.classList.add('hidden');
 }
 
+function buildBossBattleQueue() {
+  const queue = [];
+
+  // ① 過去問・文法＆語彙から3問
+  const pastGrammar = (typeof ACTUAL_PAST_EXAM_DATA !== 'undefined')
+    ? ACTUAL_PAST_EXAM_DATA.filter(x => x.type === 'grammar')
+    : [];
+  shuffleArray(pastGrammar).slice(0, 3).forEach(item => {
+    const q = getQuizDataById(item.id);
+    if (q) queue.push(q);
+  });
+
+  // ② リスニングから2問
+  const pastListening = (typeof ACTUAL_PAST_EXAM_DATA !== 'undefined')
+    ? ACTUAL_PAST_EXAM_DATA.filter(x => x.type === 'listening')
+    : [];
+  shuffleArray(pastListening).slice(0, 2).forEach(item => {
+    const q = getQuizDataById(item.id);
+    if (q) queue.push(q);
+  });
+
+  // ③ 長文読解（過去問長文＋遺跡長文）から必ず2問出題！
+  const pastReading = (typeof ACTUAL_PAST_EXAM_DATA !== 'undefined')
+    ? ACTUAL_PAST_EXAM_DATA.filter(x => x.type === 'reading').map(x => getQuizDataById(x.id))
+    : [];
+  const guildReading = (typeof RAW_READING_DATA !== 'undefined')
+    ? RAW_READING_DATA.map(x => generateReadingQuiz(x))
+    : [];
+  shuffleArray([...pastReading, ...guildReading].filter(Boolean)).slice(0, 2).forEach(q => queue.push(q));
+
+  // ④ ギルド技能：不規則動詞3連撃（トリニティ・スラッシュ）から1問
+  if (typeof RAW_IRREGULAR_VERBS !== 'undefined' && RAW_IRREGULAR_VERBS.length > 0) {
+    const verb = RAW_IRREGULAR_VERBS[Math.floor(Math.random() * RAW_IRREGULAR_VERBS.length)];
+    const triQ = getQuizDataById(`tri_${verb.base}`);
+    if (triQ) {
+      triQ.sub = '🏛️ 3級神殿ボス (不規則動詞3連撃)';
+      queue.push(triQ);
+    }
+  }
+
+  // ⑤ ギルド技能：新形式ライティング（Eメール・英作文クラフト）から1問
+  if (typeof RAW_WRITING_DATA !== 'undefined' && RAW_WRITING_DATA.length > 0) {
+    const wItem = RAW_WRITING_DATA[Math.floor(Math.random() * RAW_WRITING_DATA.length)];
+    const wQ = getQuizDataById(wItem.id);
+    if (wQ) {
+      wQ.sub = '🏛️ 3級神殿ボス (ライティング魔導書合成)';
+      queue.push(wQ);
+    }
+  }
+
+  // ⑥ 第10問（最終決戦）：二次面接スピーキング（言霊カラオケ詠唱）から1問
+  if (typeof RAW_SPEAKING_DATA !== 'undefined' && RAW_SPEAKING_DATA.length > 0) {
+    const sItem = RAW_SPEAKING_DATA[Math.floor(Math.random() * RAW_SPEAKING_DATA.length)];
+    const sQ = getQuizDataById(sItem.id);
+    if (sQ) {
+      sQ.sub = '🏛️ 3級神殿ボス最終詠唱 (最後まで声に出してトドメを刺せ！)';
+      queue.push(sQ);
+    }
+  }
+
+  return queue;
+}
+
 function startBossBattleWithStage(lv) {
   if (!userData.bossTickets || userData.bossTickets <= 0) {
     showNoticeModal(
@@ -1963,8 +2047,8 @@ function startBossBattleWithStage(lv) {
   isFeverMode = false;
   currentMode = 'boss';
 
-  const shuffledPastExams = shuffleArray(ACTUAL_PAST_EXAM_DATA).slice(0, 10);
-  currentQueue = shuffledPastExams.map(item => getQuizDataById(item.id)).filter(Boolean);
+  // 文法・リスニング・長文・3連撃・英作文・面接詠唱のすべてが融合した全10問編成
+  currentQueue = buildBossBattleQueue();
 
   if (!userData.bossSeenIntros.includes(stage.lv) && stage.introMsg) {
     userData.bossSeenIntros.push(stage.lv);
@@ -2585,12 +2669,51 @@ function proceedFinishSession() {
     earnedExp = 220;
     earnedGems = 50;
   } else if (['reading', 'writing', 'speaking', 'trinity'].includes(currentMode) && isEnemyDefeated) {
-    document.getElementById('resultEmoji').innerText = '🛡️';
-    document.getElementById('resultTitle').innerText = 'ギルド特殊訓練クリア！';
-    document.getElementById('resultModeBadge').innerText = '🌟 3級ギルド特別報酬！';
-    document.getElementById('resultModeBadge').className = 'text-xs font-black bg-amber-400 text-slate-950 px-3 py-0.5 rounded-full inline-block mb-1 shadow';
-    earnedExp = 200 + (quizScore * 25);
-    earnedGems = 35;
+    if (!userData.guildRotation || typeof userData.guildRotation !== 'object') {
+      userData.guildRotation = { reading: false, writing: false, speaking: false, trinity: false };
+    }
+    const isAlreadyDoneInCycle = Boolean(userData.guildRotation[currentMode]);
+
+    if (isAlreadyDoneInCycle) {
+      // 同じ訓練ばかりを連続周回した場合は「自主練レート」に抑え、他分野の学習を促す
+      const remainModes = [];
+      if (!userData.guildRotation.reading) remainModes.push('📜長文解読');
+      if (!userData.guildRotation.writing) remainModes.push('✍️魔導書クラフト');
+      if (!userData.guildRotation.speaking) remainModes.push('🎙️カラオケ詠唱');
+      if (!userData.guildRotation.trinity) remainModes.push('⚡3連撃スラッシュ');
+
+      document.getElementById('resultEmoji').innerText = '⚔️';
+      document.getElementById('resultTitle').innerText = 'ギルド自主練クリア！';
+      document.getElementById('resultModeBadge').innerText = '📘 反復自主練モード';
+      document.getElementById('resultModeBadge').className = 'text-xs font-black bg-teal-700 text-white px-3 py-0.5 rounded-full inline-block mb-1';
+      document.getElementById('resultComment').innerText = `未制覇の訓練（${remainModes.join('・')}）をクリアするとギルド特別報酬が復活するぞ！`;
+      earnedExp = 20 + (quizScore * 4);
+      earnedGems = 3;
+    } else {
+      userData.guildRotation[currentMode] = true;
+      const allFourDone = userData.guildRotation.reading && userData.guildRotation.writing && userData.guildRotation.speaking && userData.guildRotation.trinity;
+
+      if (allFourDone) {
+        // 4大ギルド訓練を1周コンプリート！
+        userData.guildRotation = { reading: false, writing: false, speaking: false, trinity: false };
+        document.getElementById('resultEmoji').innerText = '👑';
+        document.getElementById('resultTitle').innerText = '4大ギルド訓練サイクル完全制覇！';
+        document.getElementById('resultModeBadge').innerText = '🌟 4技能コンプリート大報酬！';
+        document.getElementById('resultModeBadge').className = 'text-xs font-black bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 px-3 py-0.5 rounded-full inline-block mb-1 shadow';
+        document.getElementById('resultComment').innerText = '長文・英作文・面接・不規則動詞の4技能すべてを制覇！全ギルド訓練の特別報酬が再解放されました！';
+        earnedExp = 180 + (quizScore * 15);
+        earnedGems = 35;
+      } else {
+        const doneCnt = [userData.guildRotation.reading, userData.guildRotation.writing, userData.guildRotation.speaking, userData.guildRotation.trinity].filter(Boolean).length;
+        document.getElementById('resultEmoji').innerText = '🛡️';
+        document.getElementById('resultTitle').innerText = `ギルド特殊訓練クリア！(${doneCnt}/4制覇)`;
+        document.getElementById('resultModeBadge').innerText = '🌟 3級ギルド特別報酬！';
+        document.getElementById('resultModeBadge').className = 'text-xs font-black bg-amber-400 text-slate-950 px-3 py-0.5 rounded-full inline-block mb-1 shadow';
+        document.getElementById('resultComment').innerText = `4つのギルド訓練をすべて制覇するとコンプリートボーナス獲得！（現在 ${doneCnt} / 4）`;
+        earnedExp = 95 + (quizScore * 12);
+        earnedGems = 15;
+      }
+    }
   } else if (currentMode === 'weakRetry' && isEnemyDefeated) {
     document.getElementById('resultEmoji').innerText = '🎯';
     document.getElementById('resultTitle').innerText = '弱点ミラージュ撃破！';
@@ -2830,17 +2953,32 @@ function rollEquipGacha(times = 1) {
 
   userData.gems -= cost;
   const gachaPool = SHOP_EQUIP_DATA.filter(e => !e.isSecret && e.price < 9000);
-  const results = [];
 
+  // レアリティ別の排出重みと解禁レベル（序盤で最終装備が出るのを防ぎ、1年間の成長に合わせて解禁）
+  const getEquipWeight = (eq) => {
+    if (eq.rank.includes('ミシック')) return userData.level >= 80 ? 2 : 0;        // Lv.80で解禁
+    if (eq.rank.includes('レジェンド')) return userData.level >= 40 ? 8 : 1;      // 低確率、Lv.40で本格解禁
+    if (eq.rank.includes('スーパーレア')) return userData.level >= 15 ? 25 : 5;   // Lv.15で本格解禁
+    if (eq.rank.includes('レア')) return 60;
+    return 120; // ノーマル
+  };
+
+  const weightedPool = [];
+  gachaPool.forEach(eq => {
+    const w = getEquipWeight(eq);
+    for (let k = 0; k < w; k++) weightedPool.push(eq);
+  });
+
+  const results = [];
   for (let i = 0; i < times; i++) {
-    const picked = gachaPool[Math.floor(Math.random() * gachaPool.length)];
+    const picked = weightedPool[Math.floor(Math.random() * weightedPool.length)] || gachaPool[0];
     if (!userData.unlockedEquips.includes(picked.id)) {
       userData.unlockedEquips.push(picked.id);
-      results.push(`🆕 ${picked.icon}【${picked.name}】入手！`);
+      results.push(`🆕 ${picked.icon}【${picked.name}】(${picked.rank}) 入手！`);
     } else {
       userData.equipLevels[picked.id] = Math.min(99, (userData.equipLevels[picked.id] || 0) + 1);
       const plusLv = userData.equipLevels[picked.id];
-      results.push(`✨ ${picked.icon}【${picked.name} +${plusLv}】に覚醒進化！(+${getEquipBonusVal(picked)})`);
+      results.push(`✨ ${picked.icon}【${picked.name} +${plusLv}】に覚醒進化！(同調補正:+${getEquipBonusVal(picked).toLocaleString()})`);
     }
   }
 
