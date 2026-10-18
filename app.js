@@ -343,6 +343,7 @@ let userData = {
   hasSeenEnding: false,
   hasSeenTrueEnding: false,
   questRotation: { vocab: false, grammar: false, listening: false },
+  guildRotation: { reading: false, writing: false, speaking: false, trinity: false },
   dailyDone: { vocab: false, grammar: false, listening: false, allClaimed: false },
   inventory: { hint: 3, loupe: 3, potion: 1 },
   equipped: { hat: '', weapon: '', aura: '' },
@@ -363,6 +364,7 @@ let selectedNormalDiffLevel = 1;
 
 let lastEarnedExp = 0;
 let isPotionAlreadyUsedForCurrentResult = false;
+let isMasterDataNormalized = false;
 
 function getTodayString() {
   const d = new Date();
@@ -370,6 +372,9 @@ function getTodayString() {
 }
 
 function normalizeMasterData() {
+  // 初回のみ実行し、2回目以降の呼び出しではメインスレッドのブロックを即座に回避
+  if (isMasterDataNormalized && RAW_VOCAB_DATA.length > 0) return;
+
   const p1 = (typeof RAW_VOCAB_PART1 !== 'undefined') ? RAW_VOCAB_PART1 : [];
   const p2 = (typeof RAW_VOCAB_PART2 !== 'undefined') ? RAW_VOCAB_PART2 : [];
   if (p1.length > 0 || p2.length > 0) {
@@ -385,7 +390,6 @@ function normalizeMasterData() {
       if (!wordMap.has(word)) {
         wordMap.set(word, [word, meaning, pos]);
       } else {
-        // 同スペルで別品詞の意味がある場合は意味を結合して消失を防ぐ
         const existing = wordMap.get(word);
         if (meaning && !existing[1].includes(meaning)) {
           existing[1] = `${existing[1]} ／ ${meaning}`;
@@ -393,16 +397,14 @@ function normalizeMasterData() {
       }
     };
 
-    // 1. 最重要熟語120語(p1先頭)と後半データ(p2: S〜Zの動詞・A〜Zの名詞すべて)を最優先登録
     p1.slice(0, 120).forEach(registerWord);
     p2.forEach(registerWord);
-    // 2. 残りの枠にp1の動詞・形容詞を登録し、重要名詞を1語も失わずにきっちり800語に揃える
     p1.slice(120).forEach(registerWord);
 
     RAW_VOCAB_DATA = Array.from(wordMap.values()).slice(0, 800);
   }
 
-  // 拡張データパック (data_extra.js) の自動マージ（重複登録防止付き）
+  // 拡張データパック (data_extra.js) の自動マージ
   if (typeof registerExtraMasterData === 'function') {
     registerExtraMasterData();
   }
@@ -426,6 +428,8 @@ function normalizeMasterData() {
       item.audio_complete = item.audio_complete || item.aud_complete || '';
     });
   }
+
+  isMasterDataNormalized = true;
 }
 
 function sanitizeUserData() {
@@ -457,6 +461,9 @@ function sanitizeUserData() {
   if (!userData.questRotation || typeof userData.questRotation !== 'object') {
     userData.questRotation = { vocab: false, grammar: false, listening: false };
   }
+  if (!userData.guildRotation || typeof userData.guildRotation !== 'object') {
+    userData.guildRotation = { reading: false, writing: false, speaking: false, trinity: false };
+  }
   if (!userData.inventory || typeof userData.inventory !== 'object') {
     userData.inventory = { hint: 3, loupe: 3, potion: 1 };
   }
@@ -483,6 +490,7 @@ function loadData() {
       const parsed = JSON.parse(saved);
       userData = { ...userData, ...parsed };
       if (parsed.questRotation) userData.questRotation = { ...userData.questRotation, ...parsed.questRotation };
+      if (parsed.guildRotation) userData.guildRotation = { ...userData.guildRotation, ...parsed.guildRotation };
       if (parsed.dailyDone) userData.dailyDone = { ...userData.dailyDone, ...parsed.dailyDone };
       if (parsed.inventory) userData.inventory = { ...userData.inventory, ...parsed.inventory };
       if (parsed.equipped) userData.equipped = { ...userData.equipped, ...parsed.equipped };
@@ -500,7 +508,18 @@ function saveData() {
   sanitizeUserData();
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-  } catch (e) {}
+  } catch (e) {
+    // ストレージ容量上限（QuotaExceededError）対策：弱点リスト外の古い統計履歴を整理して再保存
+    try {
+      const weakSet = new Set(userData.weakList);
+      Object.keys(userData.weakStats).forEach(k => {
+        if (!weakSet.has(k) && (userData.weakStats[k].cleared || 0) >= 3) {
+          delete userData.weakStats[k];
+        }
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+    } catch (e2) {}
+  }
   updateUiState();
 }
 
@@ -999,16 +1018,16 @@ function getQuizDataById(id) {
     const word = id.replace('v_', '');
     const found = RAW_VOCAB_DATA.find(x => x[0] === word);
     if (found) return generateVocabQuiz(found, 'en2ja');
-  } else if (id.startsWith('g_') && typeof RAW_GRAMMAR_DATA !== 'undefined') {
+  } else if ((id.startsWith('g_') || id.startsWith('gx_')) && typeof RAW_GRAMMAR_DATA !== 'undefined') {
     const found = RAW_GRAMMAR_DATA.find(x => x.id === id);
     if (found) return generateGrammarQuiz(found);
-  } else if (id.startsWith('l_') && typeof RAW_LISTENING_DATA !== 'undefined') {
+  } else if ((id.startsWith('l_') || id.startsWith('lx_')) && typeof RAW_LISTENING_DATA !== 'undefined') {
     const found = RAW_LISTENING_DATA.find(x => x.id === id);
     if (found) return generateListeningQuiz(found);
-  } else if (id.startsWith('r_') && typeof RAW_READING_DATA !== 'undefined') {
+  } else if ((id.startsWith('r_') || id.startsWith('rx_')) && typeof RAW_READING_DATA !== 'undefined') {
     const found = RAW_READING_DATA.find(x => x.id === id);
     if (found) return generateReadingQuiz(found);
-  } else if (id.startsWith('w_') && typeof RAW_WRITING_DATA !== 'undefined') {
+  } else if ((id.startsWith('w_') || id.startsWith('wx_')) && typeof RAW_WRITING_DATA !== 'undefined') {
     const found = RAW_WRITING_DATA.find(x => x.id === id);
     if (found) {
       return {
@@ -1024,7 +1043,7 @@ function getQuizDataById(id) {
         audio_complete: found.words.join(' ')
       };
     }
-  } else if (id.startsWith('s_') && typeof RAW_SPEAKING_DATA !== 'undefined') {
+  } else if ((id.startsWith('s_') || id.startsWith('sx_')) && typeof RAW_SPEAKING_DATA !== 'undefined') {
     const found = RAW_SPEAKING_DATA.find(x => x.id === id);
     if (found) {
       return {
@@ -1967,62 +1986,81 @@ function closeBossSelectModal() {
 }
 
 function buildBossBattleQueue() {
+  normalizeMasterData();
   const queue = [];
 
-  // ① 過去問・文法＆語彙から3問
+  // ① 文法＆語彙・会話（過去問＋拡張文法すべてから忘却曲線で3問選出）
   const pastGrammar = (typeof ACTUAL_PAST_EXAM_DATA !== 'undefined')
     ? ACTUAL_PAST_EXAM_DATA.filter(x => x.type === 'grammar')
     : [];
-  shuffleArray(pastGrammar).slice(0, 3).forEach(item => {
+  const allGrammarPool = [...pastGrammar, ...(typeof RAW_GRAMMAR_DATA !== 'undefined' ? RAW_GRAMMAR_DATA : [])];
+  selectSmartQuestions(allGrammarPool, 3, 'g_').forEach(item => {
     const q = getQuizDataById(item.id);
-    if (q) queue.push(q);
+    if (q) {
+      q.sub = '🏛️ 3級神殿ボス (文法・語彙・会話)';
+      queue.push(q);
+    }
   });
 
-  // ② リスニングから2問
+  // ② リスニング（過去問＋拡張リスニングすべてから忘却曲線で2問選出）
   const pastListening = (typeof ACTUAL_PAST_EXAM_DATA !== 'undefined')
     ? ACTUAL_PAST_EXAM_DATA.filter(x => x.type === 'listening')
     : [];
-  shuffleArray(pastListening).slice(0, 2).forEach(item => {
+  const allListeningPool = [...pastListening, ...(typeof RAW_LISTENING_DATA !== 'undefined' ? RAW_LISTENING_DATA : [])];
+  selectSmartQuestions(allListeningPool, 2, 'l_').forEach(item => {
     const q = getQuizDataById(item.id);
-    if (q) queue.push(q);
+    if (q) {
+      q.sub = '🏛️ 3級神殿ボス (対話・アナウンスリスニング)';
+      queue.push(q);
+    }
   });
 
-  // ③ 長文読解（過去問長文＋遺跡長文）から必ず2問出題！
+  // ③ 長文読解（過去問長文＋遺跡長文から忘却曲線で2問選出：選んだ2問のみを生成）
   const pastReading = (typeof ACTUAL_PAST_EXAM_DATA !== 'undefined')
-    ? ACTUAL_PAST_EXAM_DATA.filter(x => x.type === 'reading').map(x => getQuizDataById(x.id))
+    ? ACTUAL_PAST_EXAM_DATA.filter(x => x.type === 'reading')
     : [];
-  const guildReading = (typeof RAW_READING_DATA !== 'undefined')
-    ? RAW_READING_DATA.map(x => generateReadingQuiz(x))
-    : [];
-  shuffleArray([...pastReading, ...guildReading].filter(Boolean)).slice(0, 2).forEach(q => queue.push(q));
+  const allReadingPool = [...pastReading, ...(typeof RAW_READING_DATA !== 'undefined' ? RAW_READING_DATA : [])];
+  selectSmartQuestions(allReadingPool, 2, 'r_').forEach(item => {
+    const q = getQuizDataById(item.id);
+    if (q) {
+      q.sub = '🏛️ 3級神殿ボス (長文読解)';
+      queue.push(q);
+    }
+  });
 
-  // ④ ギルド技能：不規則動詞3連撃（トリニティ・スラッシュ）から1問
+  // ④ ギルド技能：不規則動詞3連撃（忘却曲線で1問選出）
   if (typeof RAW_IRREGULAR_VERBS !== 'undefined' && RAW_IRREGULAR_VERBS.length > 0) {
-    const verb = RAW_IRREGULAR_VERBS[Math.floor(Math.random() * RAW_IRREGULAR_VERBS.length)];
-    const triQ = getQuizDataById(`tri_${verb.base}`);
-    if (triQ) {
-      triQ.sub = '🏛️ 3級神殿ボス (不規則動詞3連撃)';
-      queue.push(triQ);
+    const selectedVerbs = selectSmartQuestions(RAW_IRREGULAR_VERBS, 1, 'tri_');
+    if (selectedVerbs[0]) {
+      const triQ = getQuizDataById(`tri_${selectedVerbs[0].base}`);
+      if (triQ) {
+        triQ.sub = '🏛️ 3級神殿ボス (不規則動詞3連撃)';
+        queue.push(triQ);
+      }
     }
   }
 
-  // ⑤ ギルド技能：新形式ライティング（Eメール・英作文クラフト）から1問
+  // ⑤ ギルド技能：新形式ライティング（忘却曲線で1問選出）
   if (typeof RAW_WRITING_DATA !== 'undefined' && RAW_WRITING_DATA.length > 0) {
-    const wItem = RAW_WRITING_DATA[Math.floor(Math.random() * RAW_WRITING_DATA.length)];
-    const wQ = getQuizDataById(wItem.id);
-    if (wQ) {
-      wQ.sub = '🏛️ 3級神殿ボス (ライティング魔導書合成)';
-      queue.push(wQ);
+    const selectedWriting = selectSmartQuestions(RAW_WRITING_DATA, 1, 'w_');
+    if (selectedWriting[0]) {
+      const wQ = getQuizDataById(selectedWriting[0].id);
+      if (wQ) {
+        wQ.sub = '🏛️ 3級神殿ボス (ライティング魔導書合成)';
+        queue.push(wQ);
+      }
     }
   }
 
-  // ⑥ 第10問（最終決戦）：二次面接スピーキング（言霊カラオケ詠唱）から1問
+  // ⑥ 第10問（最終決戦）：二次面接スピーキング（忘却曲線で1問選出）
   if (typeof RAW_SPEAKING_DATA !== 'undefined' && RAW_SPEAKING_DATA.length > 0) {
-    const sItem = RAW_SPEAKING_DATA[Math.floor(Math.random() * RAW_SPEAKING_DATA.length)];
-    const sQ = getQuizDataById(sItem.id);
-    if (sQ) {
-      sQ.sub = '🏛️ 3級神殿ボス最終詠唱 (最後まで声に出してトドメを刺せ！)';
-      queue.push(sQ);
+    const selectedSpeaking = selectSmartQuestions(RAW_SPEAKING_DATA, 1, 's_');
+    if (selectedSpeaking[0]) {
+      const sQ = getQuizDataById(selectedSpeaking[0].id);
+      if (sQ) {
+        sQ.sub = '🏛️ 3級神殿ボス最終詠唱 (最後まで声に出してトドメを刺せ！)';
+        queue.push(sQ);
+      }
     }
   }
 
@@ -2801,8 +2839,11 @@ function showWeakBook() {
   switchWeakTab(currentWeakTab);
 }
 
+let weakBookRenderLimit = 40;
+
 function switchWeakTab(tab) {
   currentWeakTab = tab;
+  weakBookRenderLimit = 40;
   const tActive = document.getElementById('tabWeakActive');
   const tMastered = document.getElementById('tabWeakMastered');
 
@@ -2831,13 +2872,18 @@ function renderWeakBookList() {
       <div class="md:col-span-2 bg-teal-950/50 border border-teal-800 p-6 rounded-3xl text-center space-y-2">
         <span class="text-4xl">${currentWeakTab === 'active' ? '✨' : '💮'}</span>
         <div class="font-black text-sm text-cyan-300">${currentWeakTab === 'active' ? '現在、未克服の弱点はありません！' : 'まだ殿堂入りした記録はありません！'}</div>
-        <div class="text-xs text-teal-200">${currentWeakTab === 'active' ? 'バトルで間違えた問題がここに自動アーカイブされます。' : '「克服中」の問題で「覚えた✓」を押すと殿堂入りします。'}</div>
+        <div class="text-xs text-teal-200">${currentWeakTab === 'active' ? 'バトルで間違えた問題がここに自動アーカイブされます。' : '「克服中」の問題で2回連続正解するか「覚えた✓」を押すと殿堂入りします。'}</div>
       </div>
     `;
     return;
   }
 
-  targetList.forEach(id => {
+  // 最新の記録から最大 weakBookRenderLimit 件ずつ描画し、数百件蓄積時のフリーズを防止
+  const reversedList = [...targetList].reverse();
+  const visibleSlice = reversedList.slice(0, weakBookRenderLimit);
+  const fragment = document.createDocumentFragment();
+
+  visibleSlice.forEach(id => {
     const qData = getQuizDataById(id);
     if (!qData) return;
 
@@ -2880,8 +2926,21 @@ function renderWeakBookList() {
         <div class="text-[11px] text-slate-300 leading-relaxed whitespace-pre-line break-words">${qData.explain || ''}</div>
       </div>
     `;
-    container.appendChild(card);
+    fragment.appendChild(card);
   });
+
+  if (reversedList.length > weakBookRenderLimit) {
+    const moreBtn = document.createElement('button');
+    moreBtn.className = "md:col-span-2 w-full bg-teal-900 hover:bg-teal-800 border border-cyan-500 text-cyan-200 font-black py-2.5 rounded-2xl text-xs shadow transition";
+    moreBtn.innerText = `▼ さらに40件を表示する（残り ${reversedList.length - weakBookRenderLimit} 問）`;
+    moreBtn.onclick = () => {
+      weakBookRenderLimit += 40;
+      renderWeakBookList();
+    };
+    fragment.appendChild(moreBtn);
+  }
+
+  container.appendChild(fragment);
 }
 
 function removeWeakItem(id) {
@@ -3247,6 +3306,7 @@ function importData(event) {
         ...userData,
         ...imported,
         questRotation: { ...userData.questRotation, ...(imported.questRotation || {}) },
+        guildRotation: { ...userData.guildRotation, ...(imported.guildRotation || {}) },
         dailyDone: { ...userData.dailyDone, ...(imported.dailyDone || {}) },
         inventory: { ...userData.inventory, ...(imported.inventory || {}) },
         equipped: { ...userData.equipped, ...(imported.equipped || {}) },
