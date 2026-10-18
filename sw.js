@@ -21,7 +21,10 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return Promise.allSettled(
-        urlsToCache.map((url) => cache.add(url).catch((err) => console.warn('Cache skip:', url, err)))
+        urlsToCache.map((url) => {
+          const req = url.startsWith('./') ? new Request(url, { cache: 'reload' }) : url;
+          return cache.add(req).catch((err) => console.warn('Cache skip:', url, err));
+        })
       );
     })
   );
