@@ -402,6 +402,11 @@ function normalizeMasterData() {
     RAW_VOCAB_DATA = Array.from(wordMap.values()).slice(0, 800);
   }
 
+  // 拡張データパック (data_extra.js) の自動マージ（重複登録防止付き）
+  if (typeof registerExtraMasterData === 'function') {
+    registerExtraMasterData();
+  }
+
   if (typeof RAW_GRAMMAR_DATA !== 'undefined') {
     RAW_GRAMMAR_DATA.forEach((item, idx) => {
       if (!item.id) item.id = `g_${idx}`;
