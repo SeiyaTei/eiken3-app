@@ -1,7 +1,7 @@
 // ==========================================
 // 英検3級 クロノ・オデッセイ 〜365日の時空冒険〜
-// マスターデータ定義ファイル③ (data_exam.js)
-// [収録] リスニング25問 / 長文読解20問 / ライティング20問 / 二次面接16問 / 過去問ボス50問
+// マスターデータ定義ファイル③ 完全改修版 (data_exam.js)
+// 【前半】リスニング25問 / 長文読解20問 / 新形式Eメール対応ライティング20問
 // ==========================================
 
 // ==================== 1. 英検3級 リスニング問題 (対話・アナウンス 全25問) ====================
@@ -524,7 +524,7 @@ const RAW_READING_DATA = [
   },
   {
     id: "r_14",
-    passageTitle: "📜 【物語】 Grandpa's Old Camera (おじいちゃんの古いカメラ)",
+    passageTitle: "📜 【物語】Grandpa's Old Camera (おじいちゃんの古いカメラ)",
     passage: "Last week, Taro found an old film camera in his grandfather's closet. Taro usually takes pictures with his smartphone, so he had never used a film camera before.\n\nHis grandfather taught Taro how to use it and bought some film for him. Yesterday, they walked around the old town and took twenty pictures together. Taro cannot see the photos right away, but he is very excited to see them next week.",
     highlight: "Taro usually takes pictures with his smartphone, so he had never used a film camera before.",
     q: "Why had Taro never used a film camera before?",
@@ -584,7 +584,7 @@ const RAW_READING_DATA = [
   },
   {
     id: "r_19",
-    passageTitle: "📜 【説明文】 Guide Dogs for the Blind (盲導犬の働き)",
+    passageTitle: "📜 【説明文】Guide Dogs for the Blind (盲導犬の働き)",
     passage: "Guide dogs help blind people walk safely in towns and cities. When a puppy is born, it lives with a volunteer family for about one year to learn how to live with humans and be friendly.\n\nAfter that, the dog goes to a special training center. There, it learns how to stop at street corners, avoid obstacles, and find doors or stairs. Only dogs that pass difficult tests can become guide dogs.",
     highlight: "it lives with a volunteer family for about one year to learn how to live with humans",
     q: "Why does a puppy live with a volunteer family for about one year?",
@@ -596,11 +596,11 @@ const RAW_READING_DATA = [
   }
 ];
 
-// ==================== 3. 魔導書クラフト：ライティング＆Eメール (全20問) ====================
+// ==================== 3. 魔導書クラフト：ライティング＆新形式Eメール (全20問) ====================
 const RAW_WRITING_DATA = [
   {
     id: "w_0",
-    q: "【QUESTION】Which do you like better, summer or winter?\n（夏と冬、どちらが好きですか？ ➔ 「夏の方が好き＋理由2つ」の導入文を作ろう）",
+    q: "【英作文】Which do you like better, summer or winter?\n（夏と冬、どちらが好きですか？ ➔ 「夏の方が好き＋理由が2つある」導入文を作ろう）",
     sub: "✍️ 3級英作文の黄金テンプレート（主張＋理由が2つある宣言）",
     words: ["I", "like", "summer", "better", "than", "winter.", "I", "have", "two", "reasons."],
     explain: "【3級英作文の鉄則】最初に「I like A better than B.」と答え、続けて「I have two reasons.」と書くと語数も稼げて構成点が満点になります！",
@@ -608,7 +608,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_1",
-    q: "【QUESTION】Why do you like summer?\n（なぜ夏が好きですか？ ➔ 1つ目の理由：家族と海で泳げるから）",
+    q: "【英作文】Why do you like summer?\n（なぜ夏が好きですか？ ➔ 1つ目の理由：家族と海で泳げるから）",
     sub: "✍️ First, を使って1つ目の理由を組み立てよう",
     words: ["First,", "I", "can", "enjoy", "swimming", "in", "the", "sea", "with", "my", "family."],
     explain: "【解説】1つ目の理由は「First, ~」で始めます。「enjoy + ~ing（〜して楽しむ）」は英作文で超使える万能表現です！",
@@ -616,7 +616,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_2",
-    q: "【QUESTION】Why do you like summer?\n（なぜ夏が好きですか？ ➔ 2つ目の理由：長い夏休みがあるから）",
+    q: "【英作文】Why do you like summer?\n（なぜ夏が好きですか？ ➔ 2つ目の理由：長い夏休みがあるから）",
     sub: "✍️ Second, を使って2つ目の理由を組み立てよう",
     words: ["Second,", "we", "have", "a", "long", "summer", "vacation."],
     explain: "【解説】2つ目の理由は「Second, ~」で始めます。シンプルで文法ミスをしない文を書くのが高得点の秘訣です！",
@@ -624,7 +624,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_3",
-    q: "【QUESTION】Do you want to visit foreign countries in the future?\n（将来、外国を訪れたいですか？ ➔ 理由：世界中にたくさんの友達を作りたいから）",
+    q: "【英作文】Do you want to visit foreign countries in the future?\n（将来、外国を訪れたいですか？ ➔ 理由：世界中にたくさんの友達を作りたいから）",
     sub: "✍️ First, と want to を使って理由を組み立てよう",
     words: ["First,", "I", "want", "to", "make", "many", "friends", "around", "the", "world."],
     explain: "【解説】「I want to ~（〜したい）」と「make friends（友達を作る）」はどんなトピックにも応用できる便利なフレーズです。",
@@ -632,7 +632,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_4",
-    q: "【QUESTION】Do you like reading books?\n（本を読むのは好きですか？ ➔ 理由：本からたくさんの新しいことを学べるから）",
+    q: "【英作文】Do you like reading books?\n（本を読むのは好きですか？ ➔ 理由：本からたくさんの新しいことを学べるから）",
     sub: "✍️ どんなテーマにも使える最強理由フレーズ「多くのことを学べる」",
     words: ["First,", "I", "can", "learn", "many", "new", "things", "from", "books."],
     explain: "【解説】「I can learn many new things from ~（〜から多くの新しいことを学べる）」は、読書・旅行・歴史・インターネットなどあらゆる問題で使える魔法の文です！",
@@ -640,7 +640,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_5",
-    q: "【QUESTION】What is your favorite sport?\n（一番好きなスポーツは何ですか？ ➔ 理由：サッカーをすることは健康にとても良いから）",
+    q: "【英作文】What is your favorite sport?\n（一番好きなスポーツは何ですか？ ➔ 理由：サッカーをすることは健康にとても良いから）",
     sub: "✍️ スポーツ・食べ物・早起きで使える万能理由「健康に良い」",
     words: ["Second,", "playing", "soccer", "is", "very", "good", "for", "my", "health."],
     explain: "【解説】「~ is good for my health.（〜は健康に良い）」も英検3級のライティングで大活躍する鉄板フレーズです！",
@@ -648,7 +648,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_6",
-    q: "【QUESTION】Where do you want to go this weekend?\n（今週末どこへ行きたいですか？ ➔ 理由：そこで買い物をするのはとても便利だから）",
+    q: "【英作文】Where do you want to go this weekend?\n（今週末どこへ行きたいですか？ ➔ 理由：そこで買い物をするのはとても便利だから）",
     sub: "✍️ 街・電車・スマホの話題で使える万能理由「とても便利だ」",
     words: ["Second,", "it", "is", "very", "convenient", "to", "go", "shopping", "there."],
     explain: "【解説】「It is convenient to ~（〜するのに便利だ）」を覚えておくと、場所や道具に関する英作文が簡単に書けます。",
@@ -656,31 +656,37 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_7",
-    q: "【Eメール問題】友達のAlexから「新しい自転車を買ったよ！」とメールが来ました。\nAlexに「その新しい自転車は何色ですか？」と質問する文を作ろう。",
-    sub: "✍️ 3級新形式（Eメール返信）：相手に質問する文を作ろう①",
+    passageTitle: "📧 【新形式Eメール問題】友達のAlexからのメール",
+    passage: "Hi!\nLast weekend, I bought a [new bicycle]. I rode it and [went to the park] yesterday. It was so much fun!\nYour friend, Alex",
+    q: "下線部 [new bicycle] について、Alexに「あなたの新しい自転車は何色ですか？」と質問する文を作ろう。",
+    sub: "✍️ 3級新形式（Eメール返信）：下線部について質問する疑問文①",
     words: ["What", "color", "is", "your", "new", "bicycle?"],
-    explain: "【Eメール対策】相手のメールの下線部について2つ質問する問題では、5W1H（What color / How much / Where / When など）を使ったシンプルな疑問文を作ります。",
+    explain: "【Eメール対策】相手のメールの下線部（買った物など）について質問するときは、What color（何色）や How much（いくら）を使った疑問文が確実です！",
     audio_question: "What color is your new bicycle?"
   },
   {
     id: "w_8",
-    q: "【Eメール問題】友達のAlexが「自転車で公園へ行った」と書いています。\nAlexに「誰と一緒に公園へ行きましたか？」と質問する文を作ろう。",
-    sub: "✍️ 3級新形式（Eメール返信）：相手に質問する文を作ろう②",
+    passageTitle: "📧 【新形式Eメール問題】友達のAlexからのメール",
+    passage: "Hi!\nLast weekend, I bought a [new bicycle]. I rode it and [went to the park] yesterday. It was so much fun!\nYour friend, Alex",
+    q: "下線部 [went to the park] について、Alexに「誰と一緒に公園へ行きましたか？」と質問する文を作ろう。",
+    sub: "✍️ 3級新形式（Eメール返信）：下線部について質問する疑問文②",
     words: ["Who", "did", "you", "go", "to", "the", "park", "with?"],
     explain: "【Eメール対策】過去の出来事に対して「誰と行ったの？」と聞く「Who did you go ~ with?」はEメール問題で超頻出です！",
     audio_question: "Who did you go to the park with?"
   },
   {
     id: "w_9",
-    q: "【Eメール問題】友達のEmmaが「先週末、京都のお寺を訪れた」と書いています。\nEmmaに「どうやって京都へ行きましたか？」と質問する文を作ろう。",
+    passageTitle: "📧 【新形式Eメール問題】友達のEmmaからのメール",
+    passage: "Hello!\nLast Sunday, I [visited Kyoto] with my sister. We saw many famous temples there!\nBest, Emma",
+    q: "下線部 [visited Kyoto] について、Emmaに「どうやって京都へ行きましたか？」と質問する文を作ろう。",
     sub: "✍️ 3級新形式（Eメール返信）：交通手段を尋ねる疑問文",
     words: ["How", "did", "you", "go", "to", "Kyoto?"],
-    explain: "【Eメール対策】旅行や外出の話題では「How did you go there?（どうやってそこへ行ったの？）」が最も簡単で確実に満点が取れる質問です！",
+    explain: "【Eメール対策】旅行や外出の話題では「How did you go to ~?（どうやってそこへ行ったの？）」が最も簡単で満点が取れる質問です！",
     audio_question: "How did you go to Kyoto?"
   },
   {
     id: "w_10",
-    q: "【QUESTION】Do you often help your parents at home?\n（家でよく親の手伝いをしますか？ ➔ 理由：いつも夕食後にお皿を洗うから）",
+    q: "【英作文】Do you often help your parents at home?\n（家でよく親の手伝いをしますか？ ➔ 理由：いつも夕食後にお皿を洗うから）",
     sub: "✍️ 自分の普段の行動を説明する文を組み立てよう",
     words: ["First,", "I", "always", "wash", "the", "dishes", "after", "dinner."],
     explain: "【解説】お手伝いのトピックでは wash the dishes（皿を洗う）や clean my room（部屋を掃除する）が書きやすくておすすめです。",
@@ -688,7 +694,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_11",
-    q: "【QUESTION】Which do you like better, reading books or watching movies?\n（読書と映画鑑賞、どちらが好き？ ➔ 理由：友達と映画について話すのは楽しいから）",
+    q: "【英作文】Which do you like better, reading books or watching movies?\n（読書と映画鑑賞、どちらが好き？ ➔ 理由：友達と映画について話すのは楽しいから）",
     sub: "✍️ It is fun to ~（〜するのは楽しい）を使った万能文",
     words: ["Second,", "it", "is", "fun", "to", "talk", "about", "movies", "with", "friends."],
     explain: "【解説】「It is fun to ~（〜するのは楽しい）」は、あらゆる趣味・スポーツ・イベントの理由に使える最強構文です！",
@@ -696,23 +702,27 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_12",
-    q: "【Eメール問題】友達のTomが「昨日、新しいレストランで夕食を食べた」と書いています。\nTomに「そこで何を食べましたか？」と質問する文を作ろう。",
+    passageTitle: "📧 【新形式Eメール問題】友達のTomからのメール",
+    passage: "Hi!\nYesterday, my family went to a new Italian restaurant and [had dinner] there. Everything was great!\nTom",
+    q: "下線部 [had dinner] について、Tomに「そのレストランで何を食べましたか？」と質問する文を作ろう。",
     sub: "✍️ 3級新形式（Eメール返信）：食べたものを尋ねる疑問文",
     words: ["What", "did", "you", "eat", "at", "the", "restaurant?"],
-    explain: "【Eメール対策】食事やパーティーの話題では「What did you eat there?（そこで何を食べたの？）」が鉄板の質問です！",
+    explain: "【Eメール対策】食事やパーティーの話題では「What did you eat at ~?（そこで何を食べたの？）」が鉄板の質問です！",
     audio_question: "What did you eat at the restaurant?"
   },
   {
     id: "w_13",
-    q: "【Eメール問題】友達のLisaが「来週の日曜日にテニス大会がある」と書いています。\nLisaに「大会は何時に始まりますか？」と質問する文を作ろう。",
+    passageTitle: "📧 【新形式Eメール問題】友達のLisaからのメール",
+    passage: "Hi!\nNext Sunday, we will have a big [tennis tournament] at City Park. Please come and watch!\nLisa",
+    q: "下線部 [tennis tournament] について、Lisaに「テニス大会は何時に始まりますか？」と質問する文を作ろう。",
     sub: "✍️ 3級新形式（Eメール返信）：開始時刻を尋ねる疑問文",
     words: ["What", "time", "will", "the", "tennis", "tournament", "start?"],
-    explain: "【Eメール対策】未来のイベントや試合については「What time will it start?（何時に始まりますか？）」や「Where will it be held?」が抜群に使えます。",
+    explain: "【Eメール対策】未来のイベントや試合については「What time will ~ start?（何時に始まりますか？）」が抜群に使えます。",
     audio_question: "What time will the tennis tournament start?"
   },
   {
     id: "w_14",
-    q: "【QUESTION】What is your favorite season?\n（一番好きな季節は何ですか？ ➔ 「春が一番好き：桜の花がとても美しいから」）",
+    q: "【英作文】What is your favorite season?\n（一番好きな季節は何ですか？ ➔ 「春が一番好き：桜の花がとても美しいから」）",
     sub: "✍️ 季節のトピックの鉄板フレーズを組み立てよう",
     words: ["First,", "cherry", "blossoms", "are", "very", "beautiful", "in", "spring."],
     explain: "【解説】好きな季節では spring（cherry blossoms are beautiful）や summer（can swim in the sea）が理由を書きやすくておすすめです。",
@@ -720,15 +730,15 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_15",
-    q: "【QUESTION】Do you like cooking?\n（料理をするのは好きですか？ ➔ 理由：私が料理をすると家族がとても喜んでくれるから）",
-    sub: "✍️ 家族や友達が喜ぶ（make my family happy）を使った理由文",
+    q: "【英作文】Do you like cooking?\n（料理をするのは好きですか？ ➔ 理由：家族のために料理をするとみんなをとても幸せにできるから）",
+    sub: "✍️ 家族や友達が喜ぶ（make them very happy）を使った理由文",
     words: ["Second,", "cooking", "for", "my", "family", "makes", "them", "very", "happy."],
     explain: "【解説】「make + 人 + happy（人を幸せな気持ちにする）」は、料理や手伝い、プレゼントの話題で大活躍します！",
     audio_question: "Second, cooking for my family makes them very happy."
   },
   {
     id: "w_16",
-    q: "【QUESTION】Which do you like better, studying alone or studying with friends?\n（一人で勉強するのと友達と勉強するの、どちらが好き？ ➔ 一人：静かな部屋で集中できるから）",
+    q: "【英作文】Which do you like better, studying alone or studying with friends?\n（一人で勉強するのと友達と勉強するの、どちらが好き？ ➔ 一人：静かな部屋で勉強に集中できるから）",
     sub: "✍️ 勉強場所や方法のトピックで使える理由文",
     words: ["First,", "I", "can", "concentrate", "on", "my", "studies", "in", "a", "quiet", "room."],
     explain: "【解説】concentrate on ~（〜に集中する）や study quietly（静かに勉強する）を使うと説得力のある英文になります。",
@@ -736,7 +746,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_17",
-    q: "【QUESTION】Which do you like better, studying alone or studying with friends?\n（友達と勉強する方が好き ➔ 理由：難しい問題を一緒に助け合えるから）",
+    q: "【英作文】Which do you like better, studying alone or studying with friends?\n（友達と勉強する方が好き ➔ 理由：難しい問題を一緒に助け合えるから）",
     sub: "✍️ 友達と協力するメリットを表す理由文",
     words: ["Second,", "we", "can", "help", "each", "other", "with", "difficult", "questions."],
     explain: "【解説】help each other（お互いを助け合う）は、部活や友達との学習のテーマで非常に使いやすい表現です。",
@@ -744,7 +754,7 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_18",
-    q: "【QUESTION】What foreign country would you like to visit?\n（どの外国を訪れてみたいですか？ ➔ オーストラリア：コアラやカンガルーを見たいから）",
+    q: "【英作文】What foreign country would you like to visit?\n（どの外国を訪れてみたいですか？ ➔ オーストラリア：コアラやカンガルーを見たいから）",
     sub: "✍️ 行きたい国とその理由を組み立てよう",
     words: ["First,", "I", "want", "to", "see", "koalas", "and", "kangaroos", "in", "Australia."],
     explain: "【解説】国名（Australia / America / France / Italy）と名物（animals / famous museums / delicious food）をセットで覚えておくと本番で迷いません！",
@@ -752,14 +762,15 @@ const RAW_WRITING_DATA = [
   },
   {
     id: "w_19",
-    q: "【Eメール問題】友達のPaulから「あなたの誕生日にどんなプレゼントが欲しい？」と聞かれました。\n「新しい英語の辞書が欲しいです」と答える文を作ろう。",
+    passageTitle: "📧 【新形式Eメール問題】友達のPaulからの質問に答える",
+    passage: "Hi!\nYour birthday is coming soon! What kind of present do you want for your birthday?\nYour friend, Paul",
+    q: "Paulからの質問に対して「誕生日に新しい英語の辞書が欲しいです」と返信する文を作ろう。",
     sub: "✍️ 3級新形式（Eメール返信）：相手からの質問に答える文",
     words: ["I", "would", "like", "a", "new", "English", "dictionary", "for", "my", "birthday."],
-    explain: "【Eメール対策】相手からの質問に答えるときは I want ~ や I would like ~ を使って具体的に1〜2文で答えましょう。",
+    explain: "【Eメール対策】相手からの質問に答えるときは I want ~ や I would like ~ を使って具体的に答えましょう。",
     audio_question: "I would like a new English dictionary for my birthday."
   }
 ];
-
 // ==================== 4. 言霊カラオケ詠唱：二次面接スピーキング (全16問) ====================
 const RAW_SPEAKING_DATA = [
   {
@@ -767,7 +778,7 @@ const RAW_SPEAKING_DATA = [
     passageTitle: "🎙️ 【音読パッセージ①】Cycling (サイクリング)",
     passage: "Cycling is a popular activity for many people.\nToday, many cities have special lanes for bicycles, so people can ride safely.\nAlso, riding a bicycle is very good for our health.",
     q: "Please read the passage aloud.",
-    sub: "【音読】声に出して読むと単語が黄金に光り、60%以上で自動発動します！",
+    sub: "【音読】声に出して読むと単語が黄金に光り、充填完了で自動発動します！",
     targetText: "Cycling is a popular activity for many people. Today, many cities have special lanes for bicycles, so people can ride safely.",
     keywords: ["cycling", "popular", "bicycles", "safely"],
     explain: "【面接のコツ】タイトルから読み始め、ピリオド（.）やコンマ（,）でしっかり一息ついて、大きな声でゆっくり読むと満点（5点）がもらえます！"
@@ -780,7 +791,7 @@ const RAW_SPEAKING_DATA = [
     sub: "【No.1 質問】なぜ今日、人々は安全に自転車に乗れますか？（so の前の文を使って Because ~ で詠唱しよう！）",
     targetText: "Because many cities have special lanes for bicycles.",
     keywords: ["because", "cities", "special", "lanes", "bicycles"],
-    explain: "【No.1 必勝法】Why ~? と聞かれたら、本文中の「so」の直前にある文を探し、文頭に「Because」をつけてそのまま読めば大正解です！"
+    explain: "【No.1 必勝法】Why ~? と聞かれたら、本文中の「so」の直前にある文を探し、文の最初に「Because」をつけてそのまま読めば大正解です！"
   },
   {
     id: "s_2",
@@ -938,7 +949,7 @@ const ACTUAL_PAST_EXAM_DATA = [
   {
     id: "past_2", type: "grammar",
     q: "This famous novel was ( ) by a British writer in 1890.",
-    sub: "🏛️ 3級神殿ボス (受動態)",
+    sub: "🏛️ 3級神殿ボス (受動態：〜された)",
     options: ["written", "wrote", "write", "writing"], ans: 0,
     explain: "【解説】by a British writer（イギリスの作家によって）があるため受動態〈was ＋ 過去分詞〉にします。write の過去分詞は written です。",
     audio_question: "This famous novel was ... by a British writer in 1890.",
@@ -949,7 +960,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "The man ( ) is standing near the gate is our new principal.",
     sub: "🏛️ 3級神殿ボス (関係代名詞)",
     options: ["who", "which", "whose", "whom"], ans: 0,
-    explain: "【解説】先行詞が人（The man）で主語の働きをする主格の関係代名詞 who が正解です。\n【訳】門の近くに立っている男性は、私たちの新しい校長先生です。",
+    explain: "【解説】前のことばが「人（The man）」で、すぐ後ろに動詞 is standing が続くため関係代名詞 who が正解です。\n【訳】門の近くに立っている男性は、私たちの新しい校長先生です。",
     audio_question: "The man ... is standing near the gate is our new principal.",
     audio_complete: "The man who is standing near the gate is our new principal."
   },
@@ -958,7 +969,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "Do you know what time ( ) tomorrow?",
     sub: "🏛️ 3級神殿ボス (間接疑問文)",
     options: ["the plane arrives", "does the plane arrive", "arrives the plane", "will the plane arrive"], ans: 0,
-    explain: "【解説】間接疑問文では疑問詞（what time）の後ろは〈主語 ＋ 動詞〉の肯定文の語順（the plane arrives）になります。",
+    explain: "【解説】文の途中に疑問詞（what time）が入るときは、後ろが〈主語 ＋ 動詞〉の普通の語順（the plane arrives）になります。",
     audio_question: "Do you know what time ... tomorrow?",
     audio_complete: "Do you know what time the plane arrives tomorrow?"
   },
@@ -994,7 +1005,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "The dog ( ) under the bench belongs to Mr. Tanaka.",
     sub: "🏛️ 3級神殿ボス (現在分詞の後置修飾)",
     options: ["sleeping", "slept", "sleep", "sleeps"], ans: 0,
-    explain: "【解説】「ベンチの下で眠っている犬」と名詞を後ろから修飾するため現在分詞 sleeping を使います。",
+    explain: "【解説】「ベンチの下で眠っている犬」と名詞を後ろから説明するため、現在分詞 sleeping を使います。",
     audio_question: "The dog ... under the bench belongs to Mr. Tanaka.",
     audio_complete: "The dog sleeping under the bench belongs to Mr. Tanaka."
   },
@@ -1003,7 +1014,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "I bought a camera ( ) was made in Japan.",
     sub: "🏛️ 3級神殿ボス (関係代名詞)",
     options: ["which", "who", "whom", "what"], ans: 0,
-    explain: "【解説】先行詞がモノ（a camera）なので主格の関係代名詞 which（または that）を使います。",
+    explain: "【解説】前のことばが「モノ（a camera）」なので関係代名詞 which（または that）を使います。",
     audio_question: "I bought a camera ... was made in Japan.",
     audio_complete: "I bought a camera which was made in Japan."
   },
@@ -1048,7 +1059,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "A: Do you mind if I sit here?\nB: ( ). Please go ahead.",
     sub: "🏛️ 3級神殿ボス (会話表現)",
     options: ["Not at all", "Yes, I mind", "I'm sorry", "Thank you"], ans: 0,
-    explain: "【解説】Do you mind if ~?（〜しても構いませんか？）に対して快く許可する返答は Not at all.（全然気にしませんよ＝どうぞ）です。",
+    explain: "【解説】Do you mind if ~?（〜しても構いませんか？）に対して気持ちよくOKする返事は Not at all.（全然気にしませんよ＝どうぞ）です。",
     audio_question: "Do you mind if I sit here?",
     audio_complete: "Not at all. Please go ahead."
   },
@@ -1075,7 +1086,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "The movie was ( ) touching that many people in the theater cried.",
     sub: "🏛️ 3級神殿ボス (so ... that 構文)",
     options: ["so", "too", "very", "enough"], ans: 0,
-    explain: "【解説】後ろに that 節が続くため〈so ＋ 形容詞 ＋ that ...〉（とても〜なので…だ）が正解です。",
+    explain: "【解説】後ろに that の文が続くため〈so ＋ 形容詞 ＋ that ...〉（とても〜なので…だ）が正解です。",
     audio_question: "The movie was ... touching that many people in the theater cried.",
     audio_complete: "The movie was so touching that many people in the theater cried."
   },
@@ -1207,7 +1218,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "The girl ( ) mother is a famous pianist won the music contest.",
     sub: "🏛️ 3級神殿ボス (関係代名詞の応用)",
     options: ["whose", "who", "which", "whom"], ans: 0,
-    explain: "【解説】「その少女の母親（Her mother）」と所有格のつながりになるため、所有格の関係代名詞 whose が正解です。",
+    explain: "【解説】「その少女の母親（Her mother）」と『〜の』でつながるため、関係代名詞 whose が正解です。",
     audio_question: "The girl ... mother is a famous pianist won the music contest.",
     audio_complete: "The girl whose mother is a famous pianist won the music contest."
   },
@@ -1270,7 +1281,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "Do you know the boy ( ) is talking to our English teacher?",
     sub: "🏛️ 3級神殿ボス (関係代名詞)",
     options: ["who", "which", "whose", "whom"], ans: 0,
-    explain: "【解説】先行詞が人（the boy）で直後に動詞 is talking が続くため、主格の関係代名詞 who です。",
+    explain: "【解説】前のことばが「人（the boy）」で直後に動詞 is talking が続くため、関係代名詞 who です。",
     audio_question: "Do you know the boy ... is talking to our English teacher?",
     audio_complete: "Do you know the boy who is talking to our English teacher?"
   },
@@ -1402,7 +1413,7 @@ const ACTUAL_PAST_EXAM_DATA = [
     q: "A: Could you tell me ( ) the museum is open on Mondays?\nB: Sorry, it's closed on Mondays.",
     sub: "🏛️ 3級神殿ボス (間接疑問文・if)",
     options: ["if", "that", "what", "which"], ans: 0,
-    explain: "【解説】疑問詞のない疑問文を間接疑問文にするときは、if（または whether）を使って「〜かどうか（月曜日に開いているかどうか）」を表します。",
+    explain: "【解説】疑問詞のない疑問文を文の途中に入れるときは、if（または whether）を使って「〜かどうか（月曜日に開いているかどうか）」を表します。",
     audio_question: "Could you tell me ... the museum is open on Mondays?",
     audio_complete: "Could you tell me if the museum is open on Mondays?"
   },
