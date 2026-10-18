@@ -68,10 +68,10 @@
     ::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.85); }
   </style>
 </head>
-<body class="bg-gradient-to-br from-teal-950 via-slate-950 to-emerald-950 text-slate-100 min-h-screen pb-24 font-sans selection:bg-cyan-400 selection:text-slate-950 select-none">
+<body id="appBody" class="bg-gradient-to-br from-teal-950 via-slate-950 to-emerald-950 text-slate-100 min-h-screen pb-24 font-sans selection:bg-cyan-400 selection:text-slate-950 select-none">
 
-  <!-- ヘッダー / クロノ・ステータスバー -->
-  <header class="bg-teal-950/90 backdrop-blur-md border-b border-teal-700/60 sticky top-0 z-40 px-3 py-2 shadow-xl">
+  <!-- ヘッダー / クロノ・ステータスバー（バトル時は自動格納され画面を広く使えます） -->
+  <header id="mainHeader" class="bg-teal-950/90 backdrop-blur-md border-b border-teal-700/60 sticky top-0 z-40 px-3 py-2 shadow-xl">
     <div class="max-w-5xl mx-auto flex items-center justify-between gap-2">
       <div class="flex items-center gap-2 min-w-0">
         <span class="text-2xl flex-shrink-0 animate-spin" style="animation-duration: 12s;">🧭</span>
@@ -105,12 +105,12 @@
   </header>
 
   <!-- メイン画面コンテナ -->
-  <main class="max-w-5xl mx-auto p-3 md:p-5">
+  <main class="max-w-5xl mx-auto p-2.5 md:p-4">
 
     <!-- ==================== 1. ホーム画面（タブレット2カラム対応） ==================== -->
     <div id="viewHome" class="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
       
-      <!-- 【左カラム（5列）】相棒ガーディアン ＆ 15章ワールドボス ＆ 時空の裂け目（復習ゲリラ） -->
+      <!-- 【左カラム（5列）】相棒ガーディアン ＆ 15章ワールドボス ＆ 時空の裂け目 -->
       <div class="md:col-span-5 space-y-4">
         
         <!-- 相棒ガーディアン & レベル(上限200) & ステータス -->
@@ -162,7 +162,7 @@
             <div class="min-w-0 flex-1">
               <span class="text-[10px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-full animate-pulse">⚠️ 時空の裂け目が発生！</span>
               <h3 class="text-sm md:text-base font-black text-amber-300 mt-1">🕰️ 記憶喰らいのファントム襲来！</h3>
-              <p class="text-xs text-slate-200 mt-0.5">殿堂入りした問題を忘却から守れ！撃破で💎2倍！</p>
+              <p class="text-xs text-slate-200 mt-0.5">忘却曲線アラート！殿堂入りした問題を復習して💎2倍獲得！</p>
             </div>
             <button onclick="startGuerrillaBattle()" class="bg-gradient-to-r from-rose-500 to-amber-500 hover:brightness-110 text-white font-black px-3.5 py-2.5 rounded-2xl text-xs shadow-lg transition active:scale-95 flex-shrink-0">
               迎撃 ⚔️
@@ -170,7 +170,7 @@
           </div>
         </div>
 
-        <!-- 👑 全15章 ワールドマップ・ガーディアン戦（過去問ボスバトル） -->
+        <!-- 👑 全15章 ワールドマップ・ガーディアン戦 -->
         <div class="bg-gradient-to-r from-amber-950/90 via-rose-950/90 to-slate-900 border-2 border-amber-500/80 rounded-3xl p-4 shadow-xl glow-gold relative overflow-hidden">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
@@ -181,7 +181,7 @@
               <h3 class="text-base md:text-lg font-black text-amber-300 mt-1 flex items-center gap-1 truncate">
                 🏛️ 全15章・時空神殿ボス戦
               </h3>
-              <p class="text-xs text-amber-100/90 mt-0.5 leading-snug">1年かけて全15章の守護神を討伐せよ！神話級レリックがドロップ！</p>
+              <p class="text-xs text-amber-100/90 mt-0.5 leading-snug">章ごとのテーマ別過去問ボスを討伐せよ！神話級レリックがドロップ！</p>
             </div>
             <button onclick="openBossSelectModal()" class="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 hover:brightness-110 text-slate-950 font-black px-4 py-3 rounded-2xl text-xs md:text-sm shadow-xl transition active:scale-95 flex flex-col items-center flex-shrink-0">
               <span class="text-2xl">🏛️</span>
@@ -202,7 +202,7 @@
               <h3 class="font-black text-sm md:text-base text-cyan-300 flex items-center gap-1.5">
                 ⏳ 本日のクロノ・デイリーミッション
               </h3>
-              <p class="text-[11px] md:text-xs text-teal-200">毎日コツコツ365日！3つ達成で🎫神殿チケット＆💎大量獲得！</p>
+              <p class="text-[11px] md:text-xs text-teal-200">忘却曲線AIが今日復習すべき問題を自動セレクト！3つ達成で🎫＆💎獲得！</p>
             </div>
             <span id="dailyProgressText" class="text-xs bg-slate-950 px-3 py-1 rounded-full border border-teal-600 text-cyan-300 font-black whitespace-nowrap">0 / 3</span>
           </div>
@@ -253,14 +253,14 @@
           </div>
         </div>
 
-        <!-- ⚔️ 時空遠征・基礎特訓サイクル（単語800・文法120・リスニング・弱点討伐） -->
+        <!-- ⚔️ 時空遠征・基礎特訓サイクル -->
         <div class="bg-teal-950/70 border border-teal-700/80 rounded-3xl p-4 space-y-3">
           <div class="flex justify-between items-baseline">
             <div>
               <h3 class="font-black text-sm md:text-base text-amber-300 flex items-center gap-1.5">
                 ⚔️ 時空遠征・基礎特訓サイクル
               </h3>
-              <p class="text-[11px] md:text-xs text-teal-200">3エリア制覇 ➔ 弱点モンスター討伐で🎫神殿チケット獲得！（英和・和英ハイブリッド出題）</p>
+              <p class="text-[11px] md:text-xs text-teal-200">3エリア制覇 ➔ 弱点モンスター討伐で🎫神殿チケット獲得！（オーバーキルで追加💎ボーナス）</p>
             </div>
             <span id="rotationProgressBadge" class="text-xs bg-slate-950 text-cyan-300 font-bold px-2.5 py-0.5 rounded-full border border-teal-700 flex-shrink-0">0/3完了</span>
           </div>
@@ -272,7 +272,7 @@
                 <span id="badgeRotVocab" class="text-[10px] font-bold bg-slate-950 text-cyan-200 px-1.5 py-0.5 rounded border border-cyan-600">未挑戦</span>
               </div>
               <div class="font-black text-xs md:text-sm text-white truncate">800語・熟語</div>
-              <div class="text-[10px] text-cyan-200">英和＆和英 10問</div>
+              <div class="text-[10px] text-cyan-200">品詞別4択 10問</div>
             </button>
 
             <button id="btnRotGrammar" onclick="openNormalQuestSelect('grammar')" class="bg-gradient-to-br from-emerald-700/90 to-green-900/90 p-3 rounded-2xl border border-emerald-400/40 text-left shadow transition active:scale-95">
@@ -304,14 +304,14 @@
           </div>
         </div>
 
-        <!-- 🌟 3級ギルド・4大特殊スキル訓練所（長文・英作文・自動音声詠唱・不規則動詞50種） -->
+        <!-- 🌟 3級ギルド・4大特殊スキル訓練所 -->
         <div class="bg-gradient-to-br from-slate-900 via-teal-950 to-cyan-950 border-2 border-amber-400/70 rounded-3xl p-4 space-y-3 shadow-xl glow-gold">
           <div>
             <span class="text-[10px] font-black bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 px-2.5 py-0.5 rounded-full uppercase">SPECIAL GUILD TRAINING</span>
             <h3 class="font-black text-sm md:text-base text-amber-300 mt-1 flex items-center gap-1.5">
               🛡️ 3級特殊スキル・4大ギルド訓練所
             </h3>
-            <p class="text-[11px] md:text-xs text-slate-300">声で単語を光らせる「自動詠唱バトル」や長文・英作文・過去分詞3連撃で大量EXP獲得！</p>
+            <p class="text-[11px] md:text-xs text-slate-300">ハイブリッド言霊詠唱・長文・新形式Eメール英作文・過去分詞3連撃で大量EXP獲得！</p>
           </div>
 
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -327,16 +327,16 @@
             <button onclick="startWritingCraft()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-cyan-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-2xl">✍️</span>
-                <span class="text-[9px] font-black bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/40">英作文</span>
+                <span class="text-[9px] font-black bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/40">英作文・Eメール</span>
               </div>
               <div class="font-black text-xs md:text-sm text-cyan-300 truncate">魔導書クラフト</div>
-              <div class="text-[10px] text-slate-300 leading-tight mt-0.5">意見・Eメール合成</div>
+              <div class="text-[10px] text-slate-300 leading-tight mt-0.5">新形式Eメール対応</div>
             </button>
 
             <button onclick="startSpeakingBattle()" class="bg-slate-950/90 hover:bg-teal-900/80 border border-rose-400/60 p-3 rounded-2xl text-left transition active:scale-95 shadow">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-2xl">🎙️</span>
-                <span class="text-[9px] font-black bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/40">自動音声判定</span>
+                <span class="text-[9px] font-black bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/40">ハイブリッド音声</span>
               </div>
               <div class="font-black text-xs md:text-sm text-rose-300 truncate">言霊カラオケ詠唱</div>
               <div class="text-[10px] text-slate-300 leading-tight mt-0.5">声で魔石を光らせろ！</div>
@@ -356,110 +356,121 @@
       </div>
     </div>
 
-    <!-- ==================== 2. クイズ・バトル画面（タブレット2画面分割対応） ==================== -->
-    <div id="viewQuiz" class="hidden space-y-3">
+    <!-- ==================== 2. クイズ・バトル画面（Philips T7315 横置き1画面最適化） ==================== -->
+    <div id="viewQuiz" class="hidden space-y-2">
       
-      <!-- バトル上部ナビバー -->
-      <div class="flex items-center justify-between bg-teal-950/90 p-2.5 md:p-3 rounded-2xl border border-teal-700">
-        <button onclick="confirmExitQuiz()" class="text-xs md:text-sm font-bold text-cyan-200 hover:text-white px-3 py-1 bg-slate-950 rounded-xl border border-teal-800">✕ 帰還する</button>
-        <div class="text-xs md:text-sm font-black text-amber-300" id="quizProgress">第 1 / 5 問</div>
-        <div class="flex items-center gap-2">
-          <button id="btnUseLoupe" onclick="useReadingLoupe()" class="hidden bg-amber-900/90 hover:bg-amber-800 border border-amber-400 text-amber-200 text-xs font-black px-2.5 py-1 rounded-full shadow transition active:scale-95">
-            🔍 根拠透視 (<span id="loupeStockCount">0</span>)
+      <!-- バトル上部コンパクトナビバー（HPゲージ＆進行状況統合） -->
+      <div class="grid grid-cols-12 items-center gap-2 bg-slate-950/95 p-2 rounded-2xl border border-teal-700 text-xs">
+        <div class="col-span-3 sm:col-span-2 flex items-center gap-1.5">
+          <button onclick="confirmExitQuiz()" class="font-bold text-cyan-200 hover:text-white px-2.5 py-1 bg-teal-950 rounded-xl border border-teal-700 text-[11px] whitespace-nowrap">✕ 帰還</button>
+          <span class="font-black text-amber-300 text-[11px] whitespace-nowrap" id="quizProgress">1/5</span>
+        </div>
+
+        <!-- 味方・敵 HPゲージ -->
+        <div class="col-span-6 sm:col-span-7 grid grid-cols-2 gap-2 px-1">
+          <div>
+            <div class="flex justify-between items-center font-black text-[10px]">
+              <span id="battleHeroName" class="text-cyan-300 truncate">クロノビット</span>
+              <span id="battleHeroHpText" class="text-emerald-400">150/150</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-teal-700">
+              <div id="battleHeroHpBar" class="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full w-full transition-all duration-300"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between items-center font-black text-[10px]">
+              <span id="battleEnemyName" class="text-rose-400 truncate">時空モンスター</span>
+              <span id="battleEnemyHpText" class="text-rose-300">100/100</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-rose-800">
+              <div id="battleEnemyHpBar" class="bg-gradient-to-r from-rose-600 to-amber-500 h-full w-full transition-all duration-300"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ヒント・モノクル・連撃 -->
+        <div class="col-span-3 flex items-center justify-end gap-1">
+          <button id="btnUseLoupe" onclick="useReadingLoupe()" class="hidden bg-amber-900/90 hover:bg-amber-800 border border-amber-400 text-amber-200 text-[10px] font-black px-2 py-1 rounded-full shadow transition active:scale-95 whitespace-nowrap">
+            🔍透視(<span id="loupeStockCount">0</span>)
           </button>
-          <button id="btnUseHint" onclick="use5050Hint()" class="bg-teal-800 hover:bg-teal-700 border border-cyan-400 text-cyan-200 text-xs font-black px-2.5 py-1 rounded-full shadow transition active:scale-95">
-            💡 時空ヒント (<span id="hintStockCount">0</span>)
+          <button id="btnUseHint" onclick="use5050Hint()" class="bg-teal-800 hover:bg-teal-700 border border-cyan-400 text-cyan-200 text-[10px] font-black px-2 py-1 rounded-full shadow transition active:scale-95 whitespace-nowrap">
+            💡ヒント(<span id="hintStockCount">0</span>)
           </button>
-          <div class="text-xs font-black text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2.5 py-1 rounded-full" id="comboCounter">🔥 0 連撃</div>
+          <div class="text-[10px] font-black text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-1 rounded-full whitespace-nowrap" id="comboCounter">🔥0</div>
         </div>
       </div>
 
-      <!-- フィーバータイム告知 -->
-      <div id="feverBanner" class="hidden bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400 text-slate-950 font-black text-xs md:text-sm py-1.5 px-3 rounded-xl text-center shadow-lg animate-pulse">
+      <!-- フィーバー＆オーバーキル告知バー -->
+      <div id="feverBanner" class="hidden bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400 text-slate-950 font-black text-xs py-1 px-3 rounded-xl text-center shadow-lg animate-pulse">
         ⚡🌌 OVERDRIVE FEVER 突入！ 攻撃力1.5倍 ＆ 獲得EXP・クリスタル 2倍！！ 🌌⚡
       </div>
-
-      <!-- 味方・敵 HPゲージ -->
-      <div class="grid grid-cols-2 gap-3 bg-slate-950/90 p-3 rounded-2xl border border-teal-800 text-xs md:text-sm">
-        <div class="space-y-1">
-          <div class="flex justify-between items-center font-black">
-            <span id="battleHeroName" class="text-cyan-300 truncate">クロノビット</span>
-            <span id="battleHeroHpText" class="text-emerald-400">150/150</span>
-          </div>
-          <div class="w-full bg-slate-900 rounded-full h-2.5 md:h-3 overflow-hidden border border-teal-700">
-            <div id="battleHeroHpBar" class="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full w-full transition-all duration-300"></div>
-          </div>
-        </div>
-        <div class="space-y-1">
-          <div class="flex justify-between items-center font-black">
-            <span id="battleEnemyName" class="text-rose-400 truncate">時空モンスター</span>
-            <span id="battleEnemyHpText" class="text-rose-300">100/100</span>
-          </div>
-          <div class="w-full bg-slate-900 rounded-full h-2.5 md:h-3 overflow-hidden border border-rose-800">
-            <div id="battleEnemyHpBar" class="bg-gradient-to-r from-rose-600 to-amber-500 h-full w-full transition-all duration-300"></div>
-          </div>
-        </div>
+      <div id="overkillBanner" class="hidden bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 text-white font-black text-xs py-1 px-3 rounded-xl text-center shadow-lg">
+        💥 OVERKILL モード（撃破確定）！ 残り問題に正解して追加クリスタル💎を稼ごう！
       </div>
 
       <!-- メインバトルエリア（タブレット2カラム） -->
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
         
-        <!-- 左ペイン（敵グラフィック・問題文・長文スクロール） -->
-        <div class="md:col-span-6 space-y-3">
-          <div class="bg-gradient-to-b from-teal-900/90 via-slate-900 to-slate-950 border-2 border-teal-600 rounded-3xl p-4 shadow-2xl relative overflow-hidden" id="enemyCardBox">
+        <!-- 左ペイン（敵グラフィック・問題文・長文・Eメール本文） -->
+        <div class="md:col-span-6 space-y-2">
+          <div class="bg-gradient-to-b from-teal-900/90 via-slate-900 to-slate-950 border-2 border-teal-600 rounded-3xl p-3.5 shadow-2xl relative overflow-hidden" id="enemyCardBox">
             <div id="damageEffectArea" class="absolute inset-0 pointer-events-none flex items-center justify-center z-30"></div>
 
-            <div class="flex flex-col items-center justify-center mb-2">
-              <div id="enemyAvatar" class="text-5xl md:text-6xl mb-1 animate-float">⚙️</div>
-              <div class="w-48 bg-slate-950 rounded-full h-2 border border-teal-800 overflow-hidden">
-                <div id="timerGauge" class="bg-gradient-to-r from-cyan-400 to-amber-400 h-full w-full transition-all linear"></div>
+            <!-- 敵アイコン＆タイマーバー横並び省スペース設計 -->
+            <div class="flex items-center justify-between gap-3 mb-2 bg-slate-950/60 p-2 rounded-2xl border border-teal-800/60">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div id="enemyAvatar" class="text-4xl md:text-5xl animate-float flex-shrink-0">⚙️</div>
+                <div class="min-w-0">
+                  <div class="w-36 sm:w-44 bg-slate-900 rounded-full h-2 border border-teal-800 overflow-hidden">
+                    <div id="timerGauge" class="bg-gradient-to-r from-cyan-400 to-amber-400 h-full w-full transition-all linear"></div>
+                  </div>
+                  <span id="timerText" class="text-[10px] md:text-xs text-cyan-300 font-bold block mt-0.5 truncate">🎧 音声を再生中...</span>
+                </div>
               </div>
-              <span id="timerText" class="text-[11px] md:text-xs text-cyan-300 font-bold mt-1">🎧 音声を再生中...</span>
+              <div id="audioBtnContainer" class="flex-shrink-0">
+                <button id="btnPlayAudio" onclick="playCurrentAudio()" class="bg-teal-800 hover:bg-teal-700 border border-cyan-400 text-cyan-200 text-xs font-bold py-1.5 px-3 rounded-full flex items-center gap-1 shadow transition active:scale-95 whitespace-nowrap">
+                  🔊 音声
+                </button>
+              </div>
             </div>
 
-            <div class="flex justify-center mb-2" id="audioBtnContainer">
-              <button id="btnPlayAudio" onclick="playCurrentAudio()" class="bg-teal-800 hover:bg-teal-700 border border-cyan-400 text-cyan-200 text-xs font-bold py-1 px-4 rounded-full flex items-center gap-1.5 shadow transition active:scale-95">
-                🔊 お手本音声を聞く
-              </button>
+            <!-- 📜 長文読解・Eメール・面接カード用のパッセージパネル -->
+            <div id="readingPassageBox" class="hidden mb-2.5 bg-slate-950/90 border-2 border-amber-500/60 rounded-2xl p-3 text-left max-h-52 md:max-h-64 overflow-y-auto shadow-inner">
+              <div id="readingPassageTitle" class="text-xs font-black text-amber-300 border-b border-amber-500/40 pb-1 mb-1.5">📜 パッセージ</div>
+              <div id="readingPassageText" class="text-xs md:text-sm text-slate-100 leading-relaxed whitespace-pre-line font-medium"></div>
             </div>
 
-            <!-- 📜 長文読解・面接カード用のパッセージパネル -->
-            <div id="readingPassageBox" class="hidden mb-3 bg-slate-950/85 border-2 border-amber-500/60 rounded-2xl p-3.5 text-left max-h-64 md:max-h-80 overflow-y-auto shadow-inner">
-              <div id="readingPassageTitle" class="text-xs font-black text-amber-300 border-b border-amber-500/40 pb-1 mb-2">📜 古代遺跡パッセージ</div>
-              <div id="readingPassageText" class="text-sm md:text-base text-slate-100 leading-relaxed whitespace-pre-line font-medium"></div>
+            <div class="text-center min-h-[42px] flex items-center justify-center px-1 mb-1">
+              <p id="quizQuestion" class="text-sm md:text-base font-black text-white leading-snug whitespace-pre-line break-words"></p>
             </div>
-
-            <div class="text-center min-h-[48px] flex items-center justify-center px-2 mb-1.5">
-              <p id="quizQuestion" class="text-base md:text-lg font-black text-white leading-snug whitespace-pre-line break-words"></p>
-            </div>
-            <p id="quizSubText" class="text-center text-xs md:text-sm text-amber-300 font-bold min-h-[20px] bg-slate-950/80 p-2 rounded-xl border border-teal-800/80 whitespace-pre-line break-words"></p>
+            <p id="quizSubText" class="text-center text-xs text-amber-300 font-bold bg-slate-950/80 p-2 rounded-xl border border-teal-800/80 whitespace-pre-line break-words"></p>
           </div>
         </div>
 
-        <!-- 右ペイン（4択・ライティング・自動カラオケ詠唱・3連撃・解説） -->
-        <div class="md:col-span-6 space-y-3">
+        <!-- 右ペイン（4択・ライティング・ハイブリッド言霊カラオケ詠唱・3連撃・解説パネル） -->
+        <div class="md:col-span-6 space-y-2.5 relative">
           
           <!-- A. 通常の4択オプションボタン -->
-          <div id="quizOptions" class="grid grid-cols-1 gap-2.5"></div>
+          <div id="quizOptions" class="grid grid-cols-1 gap-2"></div>
 
           <!-- B. ✍️ ライティング魔導書クラフト（語順整序パズル） -->
-          <div id="writingCraftBox" class="hidden bg-slate-900/95 border-2 border-cyan-500/70 rounded-3xl p-4 space-y-3 shadow-xl">
+          <div id="writingCraftBox" class="hidden bg-slate-900/95 border-2 border-cyan-500/70 rounded-3xl p-3.5 space-y-2.5 shadow-xl">
             <div class="text-xs font-black text-cyan-300 flex justify-between items-center">
-              <span>✍️ 魔石（単語）をタップして正しい英文を合成せよ！</span>
+              <span>✍️ 魔石（単語）をタップして英文を合成せよ！</span>
               <button onclick="resetWritingWords()" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-0.5 rounded-lg border border-slate-600">リセット ↺</button>
             </div>
-            <div id="writingAnswerSlot" class="min-h-[64px] bg-slate-950 border-2 border-dashed border-cyan-600 rounded-2xl p-3 flex flex-wrap gap-1.5 items-center text-sm md:text-base font-bold text-white"></div>
-            <div id="writingWordPool" class="flex flex-wrap gap-2 pt-1"></div>
-            <button id="btnSubmitWriting" onclick="submitWritingCraft()" class="w-full bg-gradient-to-r from-cyan-400 to-emerald-400 hover:brightness-110 text-slate-950 font-black py-2.5 rounded-2xl text-sm shadow-lg transition active:scale-95">
+            <div id="writingAnswerSlot" class="min-h-[54px] bg-slate-950 border-2 border-dashed border-cyan-600 rounded-2xl p-2.5 flex flex-wrap gap-1.5 items-center text-xs md:text-sm font-bold text-white"></div>
+            <div id="writingWordPool" class="flex flex-wrap gap-1.5 pt-1"></div>
+            <button id="btnSubmitWriting" onclick="submitWritingCraft()" class="w-full bg-gradient-to-r from-cyan-400 to-emerald-400 hover:brightness-110 text-slate-950 font-black py-2.5 rounded-2xl text-xs md:text-sm shadow-lg transition active:scale-95">
               ✨ 魔導書を発動する（解答決定）
             </button>
           </div>
 
-          <!-- C. 🎙️ 言霊カラオケ詠唱バトル（リアルタイム自動音声判定UI・手動ボタン廃止） -->
-          <div id="speakingBattleBox" class="hidden bg-slate-900/95 border-2 border-rose-500/80 rounded-3xl p-4 space-y-3.5 shadow-xl text-center">
-            <div class="flex items-center justify-between border-b border-rose-900/80 pb-2">
-              <span class="text-xs md:text-sm font-black text-rose-300 flex items-center gap-1.5">
-                🎙️ 言霊カラオケ詠唱システム
+          <!-- C. 🎙️ ハイブリッド言霊カラオケ詠唱バトル（STT＋声量波形検知） -->
+          <div id="speakingBattleBox" class="hidden bg-slate-900/95 border-2 border-rose-500/80 rounded-3xl p-3.5 space-y-2.5 shadow-xl text-center">
+            <div class="flex items-center justify-between border-b border-rose-900/80 pb-1.5">
+              <span class="text-xs font-black text-rose-300 flex items-center gap-1">
+                🎙️ ハイブリッド言霊カラオケ詠唱
               </span>
               <span id="speakingMatchMeter" class="text-xs font-black bg-rose-950 text-amber-300 px-2.5 py-0.5 rounded-full border border-rose-500">
                 魔力充填率: 0%
@@ -467,44 +478,43 @@
             </div>
 
             <!-- カラオケ式に1単語ずつ黄金に光るターゲットワードボックス -->
-            <div class="bg-slate-950 p-3.5 rounded-2xl border border-rose-800/80 space-y-2">
-              <div class="text-[11px] text-slate-400 font-bold">👇 声に出して読むと単語が黄金に光り、60%以上で自動発動します！</div>
+            <div class="bg-slate-950 p-3 rounded-2xl border border-rose-800/80 space-y-1.5">
+              <div class="text-[11px] text-slate-400 font-bold">👇 声に出して読むと単語が黄金に光り、充填完了で自動発動！（単語タップでも光ります）</div>
               <div id="speakingKaraokeWords" class="flex flex-wrap gap-1.5 justify-center items-center py-1"></div>
             </div>
 
             <!-- リアルタイム音声波形＆認識テキストモニター -->
-            <div class="bg-slate-950/90 p-3 rounded-2xl border border-teal-800 space-y-1.5">
+            <div class="bg-slate-950/90 p-2.5 rounded-2xl border border-teal-800 space-y-1">
               <div id="micWaveIndicator" class="hidden flex items-center justify-center gap-1.5 h-6">
                 <div class="w-1.5 bg-rose-500 rounded-full wave-bar"></div>
                 <div class="w-1.5 bg-amber-400 rounded-full wave-bar"></div>
                 <div class="w-1.5 bg-emerald-400 rounded-full wave-bar"></div>
                 <div class="w-1.5 bg-cyan-400 rounded-full wave-bar"></div>
                 <div class="w-1.5 bg-rose-500 rounded-full wave-bar"></div>
-                <span class="text-xs font-black text-rose-400 ml-2 animate-pulse">マイク聞き取り中... 英語を読もう！</span>
+                <span id="micVolumeLabel" class="text-xs font-black text-rose-400 ml-2 animate-pulse">マイク聞き取り中... 英語を読もう！</span>
               </div>
-              <div id="speakingRecognizedText" class="text-xs md:text-sm text-cyan-300 font-bold min-h-[24px]">
-                下の「🎙️ マイクON」を押して、光る単語を声に出して読もう！
+              <div id="speakingRecognizedText" class="text-xs text-cyan-300 font-bold min-h-[20px]">
+                下の「🎙️ マイクON」を押して、上の単語を声に出して読もう！
               </div>
             </div>
 
-            <div class="space-y-2">
-              <button id="btnStartMic" onclick="toggleSpeechRecognition()" class="w-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 hover:brightness-110 text-white font-black py-3.5 px-4 rounded-2xl text-sm md:text-base shadow-xl transition active:scale-95 flex items-center justify-center gap-2">
-                <span class="text-xl">🎙️</span> <span>マイクON（声に出して自動発動！）</span>
+            <div class="space-y-1.5">
+              <button id="btnStartMic" onclick="toggleSpeechRecognition()" class="w-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 hover:brightness-110 text-white font-black py-3 px-4 rounded-2xl text-xs md:text-sm shadow-xl transition active:scale-95 flex items-center justify-center gap-2">
+                <span class="text-lg">🎙️</span> <span>マイクON（声に出して自動発動！）</span>
               </button>
-              <!-- マイク非対応端末・認識トラブル時のみ出現する緊急バックアップボタン -->
-              <button id="btnSpeakingFallback" onclick="forceSpeakingClear()" class="hidden w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 rounded-xl border border-slate-600">
-                ⚡ 今の詠唱で魔法を放つ（音声認識スキップ）
+              <button id="btnSpeakingFallback" onclick="forceSpeakingClear()" class="hidden w-full bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold py-2 rounded-xl border border-amber-500/60">
+                ⚡ しっかり声に出して読めた！（タップして詠唱発動）
               </button>
             </div>
           </div>
 
           <!-- D. ⚡ 不規則動詞3連撃（トリニティ・スラッシュUI） -->
-          <div id="trinitySlashBox" class="hidden bg-slate-900/95 border-2 border-emerald-500/70 rounded-3xl p-4 space-y-3 shadow-xl">
+          <div id="trinitySlashBox" class="hidden bg-slate-900/95 border-2 border-emerald-500/70 rounded-3xl p-3.5 space-y-2.5 shadow-xl">
             <div class="flex justify-between items-center text-xs font-black text-emerald-300">
-              <span>⚡【原形 ➔ 過去形 ➔ 過去分詞】の順に3連タップせよ！</span>
+              <span>⚡【原形 ➔ 過去形 ➔ 過去分詞】の順に3連タップ！</span>
               <span id="trinityStepBadge" class="bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-500">1撃目：原形</span>
             </div>
-            <div id="trinitySelectedDisplay" class="grid grid-cols-3 gap-2 text-center text-xs md:text-sm font-black bg-slate-950 p-2.5 rounded-2xl border border-teal-800">
+            <div id="trinitySelectedDisplay" class="grid grid-cols-3 gap-2 text-center text-xs font-black bg-slate-950 p-2 rounded-2xl border border-teal-800">
               <div id="triSlot0" class="p-1.5 rounded-xl bg-teal-950/60 text-slate-400 border border-teal-800">① 原形</div>
               <div id="triSlot1" class="p-1.5 rounded-xl bg-teal-950/60 text-slate-400 border border-teal-800">② 過去形</div>
               <div id="triSlot2" class="p-1.5 rounded-xl bg-teal-950/60 text-slate-400 border border-teal-800">③ 過去分詞</div>
@@ -512,14 +522,26 @@
             <div id="trinityOptionsGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
           </div>
 
-          <!-- 正誤判定＆解説フィードバックパネル -->
-          <div id="quizFeedback" class="hidden bg-teal-950 border-2 border-amber-400 p-4 rounded-3xl space-y-2.5 shadow-2xl">
-            <div class="flex items-center gap-2">
-              <span id="feedbackIcon" class="text-2xl">⭕</span>
-              <h4 id="feedbackTitle" class="text-sm md:text-base font-black text-amber-300"></h4>
+          <!-- 正誤判定＆解説フィードバックパネル（スクロール不要で即押せる配置） -->
+          <div id="quizFeedback" class="hidden bg-teal-950 border-2 border-amber-400 p-3.5 rounded-3xl space-y-2 shadow-2xl">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span id="feedbackIcon" class="text-2xl">⭕</span>
+                <h4 id="feedbackTitle" class="text-xs md:text-sm font-black text-amber-300"></h4>
+              </div>
+              <!-- 自分の録音音声再生ボタン（スピーキング時のみ出現） -->
+              <button id="btnReplayMyVoice" onclick="playRecordedVoice()" class="hidden bg-rose-800 hover:bg-rose-700 border border-amber-300 text-white text-[11px] font-black px-2.5 py-1 rounded-full shadow transition active:scale-95">
+                🎧 自分の声を聞く
+              </button>
             </div>
-            <p id="feedbackExplain" class="text-xs md:text-sm text-slate-100 leading-relaxed whitespace-pre-line break-words max-h-56 overflow-y-auto bg-slate-950/85 p-3 rounded-2xl border border-teal-800"></p>
-            <button onclick="nextQuestion()" class="w-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black py-3 rounded-2xl text-sm shadow-lg hover:brightness-110 active:scale-95 transition">
+            <p id="feedbackExplain" class="text-xs text-slate-100 leading-relaxed whitespace-pre-line break-words max-h-40 overflow-y-auto bg-slate-950/90 p-2.5 rounded-2xl border border-teal-800"></p>
+            
+            <!-- ライティング時のみ出現：ノート書き写しミッションボーナス -->
+            <button id="btnNoteBonus" onclick="claimWritingNoteBonus()" class="hidden w-full bg-emerald-900/90 hover:bg-emerald-800 border border-emerald-400 text-emerald-200 font-black py-2 px-3 rounded-xl text-xs transition active:scale-95">
+              📝 完成した英文をノートに1回書いた！（ボーナス 💎+5 を受け取る）
+            </button>
+
+            <button onclick="nextQuestion()" class="w-full bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black py-2.5 rounded-2xl text-sm shadow-lg hover:brightness-110 active:scale-95 transition">
               つぎへ進む ➔
             </button>
           </div>
@@ -770,7 +792,7 @@
         <button onclick="startNormalModeWithDiff(1)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-teal-700 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
             <div class="font-black text-emerald-400">🌱 Rank 1：新米探索者（推奨 Lv.1〜25）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 低 / 攻撃: 20（基礎固め・報酬 1.0倍）</div>
+            <div class="text-[11px] text-slate-300">基礎ステージ優先 / 敵HP: 低（報酬 1.0倍）</div>
           </div>
           <span class="text-xs bg-emerald-950 text-emerald-300 font-bold px-3 py-1 rounded-xl border border-emerald-700">出撃</span>
         </button>
@@ -778,7 +800,7 @@
         <button onclick="startNormalModeWithDiff(2)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-teal-700 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
             <div class="font-black text-cyan-400">🌊 Rank 2：時空の騎士（推奨 Lv.25〜60）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 中 / 攻撃: 75（報酬 1.8倍）</div>
+            <div class="text-[11px] text-slate-300">標準ステージ解禁 / 敵HP: 中（報酬 1.8倍）</div>
           </div>
           <span class="text-xs bg-cyan-950 text-cyan-300 font-bold px-3 py-1 rounded-xl border border-cyan-700">出撃</span>
         </button>
@@ -786,7 +808,7 @@
         <button onclick="startNormalModeWithDiff(3)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-teal-700 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
             <div class="font-black text-amber-400">⚡ Rank 3：クロノマスター（推奨 Lv.60〜110）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 高 / 攻撃: 190（報酬 3.0倍）</div>
+            <div class="text-[11px] text-slate-300">全ステージ出題 / 敵HP: 高（報酬 3.0倍）</div>
           </div>
           <span class="text-xs bg-amber-950 text-amber-300 font-bold px-3 py-1 rounded-xl border border-amber-700">出撃</span>
         </button>
@@ -794,7 +816,7 @@
         <button onclick="startNormalModeWithDiff(4)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-rose-500/60 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left">
           <div>
             <div class="font-black text-rose-400">🔥 Rank 4：神話の超越者（推奨 Lv.110〜160）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 極高 / 攻撃: 420（報酬 5.0倍）</div>
+            <div class="text-[11px] text-slate-300">応用優先 / 敵HP: 極高（報酬 5.0倍）</div>
           </div>
           <span class="text-xs bg-rose-950 text-rose-300 font-black px-3 py-1 rounded-xl border border-rose-500">出撃</span>
         </button>
@@ -802,7 +824,7 @@
         <button onclick="startNormalModeWithDiff(5)" class="w-full bg-slate-950/90 hover:bg-teal-800/80 border border-purple-400 p-2.5 rounded-2xl flex items-center justify-between transition active:scale-98 text-left glow-gold">
           <div>
             <div class="font-black text-purple-300">🌌 Rank 5：時空神の領域（推奨 Lv.160〜200）</div>
-            <div class="text-[11px] text-slate-300">敵HP: 神話級 / 攻撃: 850（報酬 8.0倍）</div>
+            <div class="text-[11px] text-slate-300">最高難度 / 敵HP: 神話級（報酬 8.0倍）</div>
           </div>
           <span class="text-xs bg-purple-950 text-amber-300 font-black px-3 py-1 rounded-xl border border-amber-400">出撃</span>
         </button>
@@ -821,7 +843,7 @@
               所持: 🎫 <span id="modalTicketCount">0</span>枚
             </span>
           </div>
-          <p class="text-xs text-teal-200 mt-0.5">出撃時にチケットを1枚消費します（全15章の長期遠征）。</p>
+          <p class="text-xs text-teal-200 mt-0.5">出撃時にチケットを1枚消費します（章ごとに異なるテーマ別ボス編成）。</p>
         </div>
         <button onclick="closeBossSelectModal()" class="text-slate-400 hover:text-white text-lg font-bold px-2.5 py-0.5 bg-slate-900 rounded-xl">✕</button>
       </div>
@@ -912,8 +934,8 @@
     </div>
   </div>
 
-  <!-- ボトムナビゲーションバー -->
-  <nav class="fixed bottom-0 left-0 right-0 bg-teal-950/95 backdrop-blur-md border-t border-teal-800 py-2 z-40 shadow-2xl">
+  <!-- ボトムナビゲーションバー（バトル時は自動格納されます） -->
+  <nav id="mainBottomNav" class="fixed bottom-0 left-0 right-0 bg-teal-950/95 backdrop-blur-md border-t border-teal-800 py-2 z-40 shadow-2xl">
     <div class="max-w-2xl mx-auto grid grid-cols-5 text-[11px] md:text-xs font-bold text-center">
       <button onclick="showHome()" id="navHome" class="flex flex-col items-center gap-0.5 text-cyan-300 font-black">
         <span class="text-lg">🧭</span>
@@ -938,7 +960,7 @@
     </div>
   </nav>
 
-  <!-- 外部JavaScriptファイルの読み込み（大容量データ3分割＋新エンジン） -->
+  <!-- 外部JavaScriptファイルの読み込み -->
   <script src="data_part1.js"></script>
   <script src="data_part2.js"></script>
   <script src="data_exam.js"></script>
