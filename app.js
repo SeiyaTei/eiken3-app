@@ -451,6 +451,13 @@ function sanitizeUserData() {
   const activeWeakSet = new Set(userData.weakList);
   // 克服中リストにあるIDが殿堂入りリストに重複残留しないよう排他制御
   userData.masteredList = [...new Set(userData.masteredList)].filter(id => !activeWeakSet.has(id));
+
+  if (!userData.weakStats || typeof userData.weakStats !== 'object') userData.weakStats = {};
+  if (!Array.isArray(userData.vocabBook)) userData.vocabBook = [];
+  if (RAW_VOCAB_DATA.length > 0) {
+    const validWords = new Set(RAW_VOCAB_DATA.map(x => x[0]));
+    userData.vocabBook = [...new Set(userData.vocabBook)].filter(w => validWords.has(w));
+  }
   if (!Array.isArray(userData.unlockedEquips)) userData.unlockedEquips = [];
   if (!userData.equipLevels || typeof userData.equipLevels !== 'object') userData.equipLevels = {};
 
