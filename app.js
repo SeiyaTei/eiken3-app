@@ -47,6 +47,24 @@ function cleanTextForSpeech(text) {
     .trim();
 }
 
+let speechSessionId = 0;
+
+function cancelActiveSpeech() {
+  speechSessionId += 1;
+  isDialogueSpeaking = false;
+  clearTimeout(dialogueNextTimer);
+  clearTimeout(speechInitTimerId);
+  clearTimeout(speechTimeoutId);
+  if (activeUtterance) {
+    activeUtterance.onend = null;
+    activeUtterance.onerror = null;
+    activeUtterance = null;
+  }
+  if ('speechSynthesis' in window) {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+  }
+}
+
 function speakText(text, onCompleteCallback) {
   const cleanText = cleanTextForSpeech(text);
   if (!('speechSynthesis' in window) || !cleanText) {
@@ -54,11 +72,11 @@ function speakText(text, onCompleteCallback) {
     return;
   }
   try {
-    window.speechSynthesis.cancel();
-    clearTimeout(speechInitTimerId);
-    clearTimeout(speechTimeoutId);
+    cancelActiveSpeech();
+    const mySessionId = speechSessionId;
 
     speechInitTimerId = setTimeout(() => {
+      if (mySessionId !== speechSessionId) return;
       const uttr = new SpeechSynthesisUtterance(cleanText);
       activeUtterance = uttr;
       uttr.lang = 'en-US';
@@ -69,12 +87,11 @@ function speakText(text, onCompleteCallback) {
 
       let called = false;
       const completeOnce = () => {
-        if (!called) {
-          called = true;
-          clearTimeout(speechTimeoutId);
-          activeUtterance = null;
-          if (onCompleteCallback) onCompleteCallback();
-        }
+        if (called || mySessionId !== speechSessionId) return;
+        called = true;
+        clearTimeout(speechTimeoutId);
+        activeUtterance = null;
+        if (onCompleteCallback) onCompleteCallback();
       };
 
       uttr.onend = completeOnce;
@@ -96,14 +113,13 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
     return;
   }
   try {
-    window.speechSynthesis.cancel();
-    clearTimeout(dialogueNextTimer);
-    clearTimeout(speechTimeoutId);
+    cancelActiveSpeech();
+    const mySessionId = speechSessionId;
     isDialogueSpeaking = true;
     let index = 0;
 
     function speakNextSegment() {
-      if (!isDialogueSpeaking) return;
+      if (!isDialogueSpeaking || mySessionId !== speechSessionId) return;
       if (index >= dialogueArray.length) {
         isDialogueSpeaking = false;
         activeUtterance = null;
@@ -126,7 +142,7 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
 
       let segDone = false;
       const nextStep = () => {
-        if (segDone || !isDialogueSpeaking) return;
+        if (segDone || !isDialogueSpeaking || mySessionId !== speechSessionId) return;
         segDone = true;
         clearTimeout(speechTimeoutId);
         index++;
@@ -142,7 +158,7 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
       window.speechSynthesis.speak(uttr);
     }
 
-    setTimeout(speakNextSegment, 80);
+    dialogueNextTimer = setTimeout(speakNextSegment, 80);
   } catch (e) {
     isDialogueSpeaking = false;
     if (onCompleteCallback) onCompleteCallback();
@@ -448,9 +464,14 @@ function sanitizeUserData() {
   if (!Array.isArray(userData.weakList)) userData.weakList = [];
   if (!Array.isArray(userData.masteredList)) userData.masteredList = [];
   userData.weakList = [...new Set(userData.weakList)];
-  const activeWeakSet = new Set(userData.weakList);
-  // 克服中リストにあるIDが殿堂入りリストに重複残留しないよう排他制御
-  userData.masteredList = [...new Set(userData.masteredList)].filter(id => !activeWeakSet.has(id));
+  const activeWeakPairSet = new Set();
+  userData.weakList.forEach(id => {
+    activeWeakPairSet.add(id);
+    if (id.startsWith('v_ja_')) activeWeakPairSet.add(id.replace('v_ja_', 'v_'));
+    else if (id.startsWith('v_')) activeWeakPairSet.add(id.replace('v_', 'v_ja_'));
+  });
+  // 克服中リストにある問題（および同一単語の英和・和英ペア）が殿堂入りに重複残留しないよう排他制御
+  userData.masteredList = [...new Set(userData.masteredList)].filter(id => !activeWeakPairSet.has(id));
 
   if (!userData.weakStats || typeof userData.weakStats !== 'object') userData.weakStats = {};
   if (!Array.isArray(userData.vocabBook)) userData.vocabBook = [];
@@ -1651,8 +1672,8 @@ function stopMicRecognition() {
 }
 
 async function startMicRecognition() {
-  if (isAnswered) return;
-  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  if (isAnswered || isMicListening || isFallbackActivating) return;
+  cancelActiveSpeech();
 
   const recText = document.getElementById('speakingRecognizedText');
   const waveEl = document.getElementById('micWaveIndicator');
@@ -1670,18 +1691,6 @@ async function startMicRecognition() {
     if (btnFallback) btnFallback.classList.remove('hidden');
     return;
   }
-
-  try {
-    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    tempStream.getTracks().forEach(track => track.stop());
-  } catch (err) {
-    if (recText) recText.innerText = '⚠️ マイク権限がブロックされています。ブラウザ設定でマイクを許可してください。';
-    if (btnFallback) btnFallback.classList.remove('hidden');
-    return;
-  }
-
-  // 非同期待機中に解答済み、またはクイズ画面から離脱していた場合は即座に中断
-  if (isAnswered || document.getElementById('viewQuiz')?.classList.contains('hidden')) return;
 
   isMicListening = true;
   if (waveEl) waveEl.classList.remove('hidden');
@@ -1803,7 +1812,12 @@ async function activateVolumeFallback(q) {
     startVoiceRecording(micStream);
     startVolumeBasedKaraoke(micStream, q);
   } catch (e) {
+    isMicListening = false;
+    const waveEl = document.getElementById('micWaveIndicator');
+    const recText = document.getElementById('speakingRecognizedText');
     const btnFallback = document.getElementById('btnSpeakingFallback');
+    if (waveEl) waveEl.classList.add('hidden');
+    if (recText) recText.innerText = '⚠️ マイクが使用できません。下のボタンで魔法を発動できます。';
     if (btnFallback) btnFallback.classList.remove('hidden');
   } finally {
     isFallbackActivating = false;
@@ -2245,13 +2259,9 @@ function stopBattleTimers() {
     clearInterval(timerGaugeInterval);
     timerGaugeInterval = null;
   }
-  isDialogueSpeaking = false;
-  clearTimeout(dialogueNextTimer);
-  clearTimeout(speechInitTimerId);
-  clearTimeout(speechTimeoutId);
+  cancelActiveSpeech();
   clearTimeout(postAnswerTimerId);
   clearTimeout(fallbackTimerId);
-  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   if (activeRecordedAudio) {
     try { activeRecordedAudio.pause(); } catch (e) {}
     activeRecordedAudio = null;
@@ -2350,6 +2360,7 @@ function updateBattleHpUi() {
 }
 
 function startCriticalTimer() {
+  if (isAnswered || isSessionFinishing || document.getElementById('viewQuiz')?.classList.contains('hidden')) return;
   questionStartTime = Date.now();
   const q = currentQueue[currentIndex];
   const pStats = calculatePlayerStats();
@@ -2685,11 +2696,13 @@ function processAnswerResult(isCorrect, q) {
     }
 
     if (q.id) {
+      const baseId = q.id.startsWith('v_ja_') ? q.id.replace('v_ja_', 'v_') : q.id;
+      const altId = baseId.startsWith('v_') ? baseId.replace('v_', 'v_ja_') : q.id;
       if (!userData.weakList.includes(q.id)) {
         userData.weakList.push(q.id);
       }
-      // 殿堂入りしていた問題を間違えた場合は、殿堂入りから外して克服中へ戻す
-      userData.masteredList = userData.masteredList.filter(x => x !== q.id);
+      // 殿堂入りしていた問題（および同一単語のペアID）を間違えた場合は、殿堂入りから外して克服中へ戻す
+      userData.masteredList = userData.masteredList.filter(x => x !== q.id && x !== baseId && x !== altId);
     }
 
     feedbackIcon.innerText = '❌';
@@ -3075,9 +3088,10 @@ function renderWeakBookList() {
 
 function removeWeakItem(id) {
   const baseId = id.startsWith('v_ja_') ? id.replace('v_ja_', 'v_') : id;
+  const altId = baseId.startsWith('v_') ? baseId.replace('v_', 'v_ja_') : id;
   if (userData.weakStats[id]) userData.weakStats[id].streak = 2;
   if (userData.weakStats[baseId]) userData.weakStats[baseId].streak = 2;
-  userData.weakList = userData.weakList.filter(item => item !== id);
+  userData.weakList = userData.weakList.filter(item => item !== id && item !== baseId && item !== altId);
   if (!userData.masteredList.includes(id)) userData.masteredList.push(id);
   saveData();
   renderWeakBookList();
@@ -3085,9 +3099,10 @@ function removeWeakItem(id) {
 
 function restoreWeakItem(id) {
   const baseId = id.startsWith('v_ja_') ? id.replace('v_ja_', 'v_') : id;
+  const altId = baseId.startsWith('v_') ? baseId.replace('v_', 'v_ja_') : id;
   if (userData.weakStats[id]) userData.weakStats[id].streak = 0;
   if (userData.weakStats[baseId]) userData.weakStats[baseId].streak = 0;
-  userData.masteredList = userData.masteredList.filter(item => item !== id);
+  userData.masteredList = userData.masteredList.filter(item => item !== id && item !== baseId && item !== altId);
   if (!userData.weakList.includes(id)) userData.weakList.push(id);
   saveData();
   renderWeakBookList();
@@ -3362,6 +3377,8 @@ function finishEndingSequence() {
 
 function showTrueEndingModal() {
   hideAllViews();
+  const homeEl = document.getElementById('viewHome');
+  if (homeEl) homeEl.classList.remove('hidden');
   playBGM('trueEnding');
   const acc = userData.totalAnswered > 0
     ? Math.round((userData.totalCorrect / userData.totalAnswered) * 100)
@@ -3391,7 +3408,7 @@ function hideAllViews() {
   [
     'viewHome', 'viewQuiz', 'viewResult', 'viewShop',
     'viewParent', 'viewBook', 'viewWeakBook',
-    'modalBossSelect', 'modalNormalSelect', 'modalBossDialogue', 'quizFeedback'
+    'modalBossSelect', 'modalNormalSelect', 'modalBossDialogue', 'modalEnding', 'quizFeedback'
   ].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
@@ -3501,11 +3518,7 @@ document.addEventListener('pointerdown', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     clearTimeout(bgmTimer);
-    isDialogueSpeaking = false;
-    clearTimeout(dialogueNextTimer);
-    clearTimeout(speechInitTimerId);
-    clearTimeout(speechTimeoutId);
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    cancelActiveSpeech();
     if (activeRecordedAudio) {
       try { activeRecordedAudio.pause(); } catch (e) {}
     }
