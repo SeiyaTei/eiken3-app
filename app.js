@@ -4,7 +4,7 @@
 // 【前半：セクション 1 〜 7】
 // ==========================================
 
-// ==================== 1. 音声合成エンジン (初期動作復元 ＋ リスニング一括キュー方式) ====================
+// ==================== 1. 音声合成エンジン (初期シンプル構造・確実発声版) ====================
 let voiceSpeed = 0.85;
 let isDialogueSpeaking = false;
 let dialogueNextTimer = null;
@@ -12,30 +12,10 @@ let activeUtterance = null;
 let speechTimeoutId = null;
 let speechInitTimerId = null;
 let postAnswerTimerId = null;
-let cachedVoices = [];
 let speechSessionId = 0;
-// ガベージコレクション（GC）によって発声途中に音声オブジェクトが消滅するのを防ぐ保持配列
-window._utteranceQueue = [];
 
-function loadVoices() {
-  if (!('speechSynthesis' in window)) return;
-  try {
-    const v = window.speechSynthesis.getVoices();
-    if (v && v.length > 0) cachedVoices = v;
-  } catch (e) {}
-}
-if ('speechSynthesis' in window) {
-  loadVoices();
-  window.speechSynthesis.onvoiceschanged = loadVoices;
-}
-
-function getBestEnglishVoice() {
-  if (!cachedVoices || cachedVoices.length === 0) loadVoices();
-  if (!cachedVoices || cachedVoices.length === 0) return null;
-  return cachedVoices.find(v => v.lang === 'en-US' && v.name.includes('Google')) ||
-         cachedVoices.find(v => v.lang === 'en-US' || v.lang === 'en_US') ||
-         cachedVoices.find(v => v.lang && v.lang.toLowerCase().startsWith('en')) || null;
-}
+// GC（ガベージコレクション）で発声中にオブジェクトが消えるのを防ぐグローバルプール
+window._ activeUtterances = [];
 
 function toggleVoiceSpeed() {
   voiceSpeed = (voiceSpeed === 0.85) ? 1.0 : 0.85;
@@ -65,9 +45,52 @@ function cancelActiveSpeech() {
     activeUtterance.onerror = null;
     activeUtterance = null;
   }
-  window._utteranceQueue = [];
+  window._activeUtterances = [];
   if ('speechSynthesis' in window) {
     try { window.speechSynthesis.cancel(); } catch (e) {}
+  }
+}
+
+// 1文を確実に鳴らすコア関数（voice強制割当を行わずOS標準のen-USを使用）
+function speakSingleUtterance(text, pitch, mySessionId, onEnded) {
+  const cleanText = cleanTextForSpeech(text);
+  if (!('speechSynthesis' in window) || !cleanText) {
+    if (onEnded) onEnded();
+    return;
+  }
+  try {
+    // Chrome/AndroidのTTS一時停止ロックを強制解除
+    try { window.speechSynthesis.resume(); } catch (e) {}
+
+    const uttr = new SpeechSynthesisUtterance(cleanText);
+    window._activeUtterances.push(uttr);
+    activeUtterance = uttr;
+
+    uttr.lang = 'en-US';
+    uttr.rate = voiceSpeed;
+    uttr.pitch = pitch || 1.0;
+    uttr.volume = 1.0;
+
+    let finished = false;
+    const done = () => {
+      if (finished || mySessionId !== speechSessionId) return;
+      finished = true;
+      clearTimeout(speechTimeoutId);
+      activeUtterance = null;
+      if (onEnded) onEnded();
+    };
+
+    uttr.onend = done;
+    uttr.onerror = done;
+
+    const limitMs = Math.max(4500, Math.round((cleanText.length * 110) / voiceSpeed) + 2000);
+    speechTimeoutId = setTimeout(done, limitMs);
+
+    window.speechSynthesis.speak(uttr);
+    // speak直後にもう一度resumeを叩くことでAndroid Chromeの無音スタックを防止
+    try { window.speechSynthesis.resume(); } catch (e) {}
+  } catch (e) {
+    if (onEnded) onEnded();
   }
 }
 
@@ -77,50 +100,13 @@ function speakText(text, onCompleteCallback) {
     if (onCompleteCallback) onCompleteCallback();
     return;
   }
-  try {
-    cancelActiveSpeech();
-    const mySessionId = speechSessionId;
+  cancelActiveSpeech();
+  const mySessionId = speechSessionId;
 
-    // cancel() 直後の speak() がブラウザに飲み込まれるバグを防ぐため、初期コード同様 80ms 空けて発声
-    speechInitTimerId = setTimeout(() => {
-      if (mySessionId !== speechSessionId) return;
-      try {
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-      } catch (e) {}
-
-      const uttr = new SpeechSynthesisUtterance(cleanText);
-      window._utteranceQueue = [uttr];
-      activeUtterance = uttr;
-      uttr.lang = 'en-US';
-      uttr.rate = voiceSpeed;
-      uttr.volume = 1.0;
-
-      const bestVoice = getBestEnglishVoice();
-      if (bestVoice) {
-        try { uttr.voice = bestVoice; } catch (e) {}
-      }
-
-      let called = false;
-      const completeOnce = () => {
-        if (called || mySessionId !== speechSessionId) return;
-        called = true;
-        clearTimeout(speechTimeoutId);
-        activeUtterance = null;
-        window._utteranceQueue = [];
-        if (onCompleteCallback) onCompleteCallback();
-      };
-
-      uttr.onend = completeOnce;
-      uttr.onerror = completeOnce;
-
-      const dynamicLimit = Math.max(5000, Math.round((cleanText.length * 110) / voiceSpeed) + 2500);
-      speechTimeoutId = setTimeout(completeOnce, dynamicLimit);
-
-      window.speechSynthesis.speak(uttr);
-    }, 80);
-  } catch (e) {
-    if (onCompleteCallback) onCompleteCallback();
-  }
+  speechInitTimerId = setTimeout(() => {
+    if (mySessionId !== speechSessionId) return;
+    speakSingleUtterance(cleanText, 1.0, mySessionId, onCompleteCallback);
+  }, 60);
 }
 
 function playDialogueSpeech(dialogueArray, onCompleteCallback) {
@@ -128,79 +114,34 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
     if (onCompleteCallback) onCompleteCallback();
     return;
   }
-  try {
-    cancelActiveSpeech();
-    const mySessionId = speechSessionId;
-    isDialogueSpeaking = true;
+  cancelActiveSpeech();
+  const mySessionId = speechSessionId;
+  isDialogueSpeaking = true;
+  let index = 0;
 
-    speechInitTimerId = setTimeout(() => {
+  function nextSegment() {
+    if (!isDialogueSpeaking || mySessionId !== speechSessionId) return;
+    if (index >= dialogueArray.length) {
+      isDialogueSpeaking = false;
+      activeUtterance = null;
+      window._activeUtterances = [];
+      if (onCompleteCallback) onCompleteCallback();
+      return;
+    }
+
+    const seg = dialogueArray[index];
+    let pitch = 1.0;
+    if (seg.speaker === 'female') pitch = 1.2;
+    else if (seg.speaker === 'male') pitch = 0.85;
+
+    index += 1;
+    speakSingleUtterance(seg.text, pitch, mySessionId, () => {
       if (!isDialogueSpeaking || mySessionId !== speechSessionId) return;
-      try {
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-      } catch (e) {}
-
-      const bestVoice = getBestEnglishVoice();
-      let totalChars = 0;
-      window._utteranceQueue = [];
-
-      let allDone = false;
-      const finishDialogue = () => {
-        if (allDone || mySessionId !== speechSessionId) return;
-        allDone = true;
-        isDialogueSpeaking = false;
-        clearTimeout(speechTimeoutId);
-        activeUtterance = null;
-        window._utteranceQueue = [];
-        if (onCompleteCallback) onCompleteCallback();
-      };
-
-      // 2文目以降が非同期タイマーでブロックされるのを防ぐため、全セグメントを一括でネイティブキューに登録
-      dialogueArray.forEach((segment, idx) => {
-        const segText = cleanTextForSpeech(segment.text);
-        if (!segText) return;
-        totalChars += segText.length;
-
-        const uttr = new SpeechSynthesisUtterance(segText);
-        uttr.lang = 'en-US';
-        uttr.rate = voiceSpeed;
-        uttr.volume = 1.0;
-
-        if (bestVoice) {
-          try { uttr.voice = bestVoice; } catch (e) {}
-        }
-
-        if (segment.speaker === 'female') uttr.pitch = 1.22;
-        else if (segment.speaker === 'male') uttr.pitch = 0.82;
-        else uttr.pitch = 1.0;
-
-        if (idx === dialogueArray.length - 1) {
-          uttr.onend = finishDialogue;
-          uttr.onerror = finishDialogue;
-        } else {
-          uttr.onerror = () => {
-            if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-              finishDialogue();
-            }
-          };
-        }
-
-        window._utteranceQueue.push(uttr);
-        activeUtterance = uttr;
-        window.speechSynthesis.speak(uttr);
-      });
-
-      if (window._utteranceQueue.length === 0) {
-        finishDialogue();
-        return;
-      }
-
-      const totalLimit = Math.max(7000, Math.round((totalChars * 120) / voiceSpeed) + 4000);
-      speechTimeoutId = setTimeout(finishDialogue, totalLimit);
-    }, 80);
-  } catch (e) {
-    isDialogueSpeaking = false;
-    if (onCompleteCallback) onCompleteCallback();
+      dialogueNextTimer = setTimeout(nextSegment, 280);
+    });
   }
+
+  dialogueNextTimer = setTimeout(nextSegment, 60);
 }
 
 function speakVocabByIndex(idx) {
