@@ -60,17 +60,26 @@ self.addEventListener('fetch', (event) => {
   const isSameOrigin = event.request.url.startsWith(self.location.origin);
 
   if (isSameOrigin) {
-    // 3秒以内に応答がなければ即座にキャッシュを返し、パケ詰まりでの起動フリーズを防止
+    // 3秒以内に応答がない場合やHTTPエラー時は即座にキャッシュを返し、オフライン時の起動フリーズを防止
     event.respondWith(
       fetchWithTimeout(event.request, 3000)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          if (!networkResponse || !networkResponse.ok) {
+            throw new Error('Bad network response');
           }
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           return networkResponse;
         })
-        .catch(() => caches.match(event.request).then((res) => res || caches.match('./index.html')))
+        .catch(() =>
+          caches.match(event.request, { ignoreSearch: true }).then((res) => {
+            if (res) return res;
+            if (event.request.mode === 'navigate') {
+              return caches.match('./index.html');
+            }
+            return new Response('', { status: 503, statusText: 'Offline' });
+          })
+        )
     );
   } else {
     // 外部CDN（Tailwind CSS等）はキャッシュ優先で高速化＆オフライン維持
