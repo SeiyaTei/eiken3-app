@@ -4,7 +4,7 @@
 // 【前半：セクション 1 〜 7】
 // ==========================================
 
-// ==================== 1. 音声合成エンジン (Android / タブレット確実発声版) ====================
+// ==================== 1. 音声合成エンジン (初期動作復元 ＋ リスニング一括キュー方式) ====================
 let voiceSpeed = 0.85;
 let isDialogueSpeaking = false;
 let dialogueNextTimer = null;
@@ -12,19 +12,29 @@ let activeUtterance = null;
 let speechTimeoutId = null;
 let speechInitTimerId = null;
 let postAnswerTimerId = null;
+let cachedVoices = [];
 let speechSessionId = 0;
-let isTtsUnlocked = false;
+// ガベージコレクション（GC）によって発声途中に音声オブジェクトが消滅するのを防ぐ保持配列
+window._utteranceQueue = [];
 
-// 最初のタップ時にブラウザの音声合成ロックを解除
-function unlockSpeechSynthesis() {
-  if (isTtsUnlocked || !('speechSynthesis' in window)) return;
+function loadVoices() {
+  if (!('speechSynthesis' in window)) return;
   try {
-    const u = new SpeechSynthesisUtterance('');
-    u.volume = 0;
-    u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-    isTtsUnlocked = true;
+    const v = window.speechSynthesis.getVoices();
+    if (v && v.length > 0) cachedVoices = v;
   } catch (e) {}
+}
+if ('speechSynthesis' in window) {
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+function getBestEnglishVoice() {
+  if (!cachedVoices || cachedVoices.length === 0) loadVoices();
+  if (!cachedVoices || cachedVoices.length === 0) return null;
+  return cachedVoices.find(v => v.lang === 'en-US' && v.name.includes('Google')) ||
+         cachedVoices.find(v => v.lang === 'en-US' || v.lang === 'en_US') ||
+         cachedVoices.find(v => v.lang && v.lang.toLowerCase().startsWith('en')) || null;
 }
 
 function toggleVoiceSpeed() {
@@ -55,12 +65,9 @@ function cancelActiveSpeech() {
     activeUtterance.onerror = null;
     activeUtterance = null;
   }
+  window._utteranceQueue = [];
   if ('speechSynthesis' in window) {
-    try {
-      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-        window.speechSynthesis.cancel();
-      }
-    } catch (e) {}
+    try { window.speechSynthesis.cancel(); } catch (e) {}
   }
 }
 
@@ -71,52 +78,46 @@ function speakText(text, onCompleteCallback) {
     return;
   }
   try {
-    speechSessionId += 1;
+    cancelActiveSpeech();
     const mySessionId = speechSessionId;
-    isDialogueSpeaking = false;
-    clearTimeout(dialogueNextTimer);
-    clearTimeout(speechInitTimerId);
-    clearTimeout(speechTimeoutId);
 
-    if (activeUtterance) {
-      activeUtterance.onend = null;
-      activeUtterance.onerror = null;
-      activeUtterance = null;
-    }
+    // cancel() 直後の speak() がブラウザに飲み込まれるバグを防ぐため、初期コード同様 80ms 空けて発声
+    speechInitTimerId = setTimeout(() => {
+      if (mySessionId !== speechSessionId) return;
+      try {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      } catch (e) {}
 
-    // 再生中の場合のみキャンセル
-    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-      try { window.speechSynthesis.cancel(); } catch (e) {}
-    }
-    if (window.speechSynthesis.paused) {
-      try { window.speechSynthesis.resume(); } catch (e) {}
-    }
+      const uttr = new SpeechSynthesisUtterance(cleanText);
+      window._utteranceQueue = [uttr];
+      activeUtterance = uttr;
+      uttr.lang = 'en-US';
+      uttr.rate = voiceSpeed;
+      uttr.volume = 1.0;
 
-    const uttr = new SpeechSynthesisUtterance(cleanText);
-    // GC（ガベージコレクション）による発声中断を防ぐためグローバル変数に保持
-    window._currentUtterance = uttr;
-    activeUtterance = uttr;
-    // OS標準の英語エンジンが確実に鳴るよう uttr.voice の強制上書きを行わず lang のみ指定
-    uttr.lang = 'en-US';
-    uttr.rate = voiceSpeed;
-    uttr.volume = 1.0;
+      const bestVoice = getBestEnglishVoice();
+      if (bestVoice) {
+        try { uttr.voice = bestVoice; } catch (e) {}
+      }
 
-    let called = false;
-    const completeOnce = () => {
-      if (called || mySessionId !== speechSessionId) return;
-      called = true;
-      clearTimeout(speechTimeoutId);
-      if (activeUtterance === uttr) activeUtterance = null;
-      if (onCompleteCallback) onCompleteCallback();
-    };
+      let called = false;
+      const completeOnce = () => {
+        if (called || mySessionId !== speechSessionId) return;
+        called = true;
+        clearTimeout(speechTimeoutId);
+        activeUtterance = null;
+        window._utteranceQueue = [];
+        if (onCompleteCallback) onCompleteCallback();
+      };
 
-    uttr.onend = completeOnce;
-    uttr.onerror = completeOnce;
+      uttr.onend = completeOnce;
+      uttr.onerror = completeOnce;
 
-    const dynamicLimit = Math.max(4000, Math.round((cleanText.length * 110) / voiceSpeed) + 2000);
-    speechTimeoutId = setTimeout(completeOnce, dynamicLimit);
+      const dynamicLimit = Math.max(5000, Math.round((cleanText.length * 110) / voiceSpeed) + 2500);
+      speechTimeoutId = setTimeout(completeOnce, dynamicLimit);
 
-    window.speechSynthesis.speak(uttr);
+      window.speechSynthesis.speak(uttr);
+    }, 80);
   } catch (e) {
     if (onCompleteCallback) onCompleteCallback();
   }
@@ -128,69 +129,74 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
     return;
   }
   try {
-    speechSessionId += 1;
+    cancelActiveSpeech();
     const mySessionId = speechSessionId;
     isDialogueSpeaking = true;
-    clearTimeout(dialogueNextTimer);
-    clearTimeout(speechInitTimerId);
-    clearTimeout(speechTimeoutId);
 
-    if (activeUtterance) {
-      activeUtterance.onend = null;
-      activeUtterance.onerror = null;
-      activeUtterance = null;
-    }
-
-    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-      try { window.speechSynthesis.cancel(); } catch (e) {}
-    }
-    if (window.speechSynthesis.paused) {
-      try { window.speechSynthesis.resume(); } catch (e) {}
-    }
-
-    let index = 0;
-
-    function speakNextSegment() {
+    speechInitTimerId = setTimeout(() => {
       if (!isDialogueSpeaking || mySessionId !== speechSessionId) return;
-      if (index >= dialogueArray.length) {
+      try {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      } catch (e) {}
+
+      const bestVoice = getBestEnglishVoice();
+      let totalChars = 0;
+      window._utteranceQueue = [];
+
+      let allDone = false;
+      const finishDialogue = () => {
+        if (allDone || mySessionId !== speechSessionId) return;
+        allDone = true;
         isDialogueSpeaking = false;
+        clearTimeout(speechTimeoutId);
         activeUtterance = null;
+        window._utteranceQueue = [];
         if (onCompleteCallback) onCompleteCallback();
+      };
+
+      // 2文目以降が非同期タイマーでブロックされるのを防ぐため、全セグメントを一括でネイティブキューに登録
+      dialogueArray.forEach((segment, idx) => {
+        const segText = cleanTextForSpeech(segment.text);
+        if (!segText) return;
+        totalChars += segText.length;
+
+        const uttr = new SpeechSynthesisUtterance(segText);
+        uttr.lang = 'en-US';
+        uttr.rate = voiceSpeed;
+        uttr.volume = 1.0;
+
+        if (bestVoice) {
+          try { uttr.voice = bestVoice; } catch (e) {}
+        }
+
+        if (segment.speaker === 'female') uttr.pitch = 1.22;
+        else if (segment.speaker === 'male') uttr.pitch = 0.82;
+        else uttr.pitch = 1.0;
+
+        if (idx === dialogueArray.length - 1) {
+          uttr.onend = finishDialogue;
+          uttr.onerror = finishDialogue;
+        } else {
+          uttr.onerror = () => {
+            if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+              finishDialogue();
+            }
+          };
+        }
+
+        window._utteranceQueue.push(uttr);
+        activeUtterance = uttr;
+        window.speechSynthesis.speak(uttr);
+      });
+
+      if (window._utteranceQueue.length === 0) {
+        finishDialogue();
         return;
       }
 
-      const segment = dialogueArray[index];
-      const segText = cleanTextForSpeech(segment.text);
-      const uttr = new SpeechSynthesisUtterance(segText);
-      window._currentUtterance = uttr;
-      activeUtterance = uttr;
-      uttr.lang = 'en-US';
-      uttr.rate = voiceSpeed;
-      uttr.volume = 1.0;
-
-      if (segment.speaker === 'female') uttr.pitch = 1.2;
-      else if (segment.speaker === 'male') uttr.pitch = 0.85;
-      else uttr.pitch = 1.0;
-
-      let segDone = false;
-      const nextStep = () => {
-        if (segDone || !isDialogueSpeaking || mySessionId !== speechSessionId) return;
-        segDone = true;
-        clearTimeout(speechTimeoutId);
-        index++;
-        dialogueNextTimer = setTimeout(speakNextSegment, 300);
-      };
-
-      uttr.onend = nextStep;
-      uttr.onerror = nextStep;
-
-      const segLimit = Math.max(4000, Math.round((segText.length * 110) / voiceSpeed) + 2000);
-      speechTimeoutId = setTimeout(nextStep, segLimit);
-
-      window.speechSynthesis.speak(uttr);
-    }
-
-    speakNextSegment();
+      const totalLimit = Math.max(7000, Math.round((totalChars * 120) / voiceSpeed) + 4000);
+      speechTimeoutId = setTimeout(finishDialogue, totalLimit);
+    }, 80);
   } catch (e) {
     isDialogueSpeaking = false;
     if (onCompleteCallback) onCompleteCallback();
@@ -2442,7 +2448,13 @@ function startCriticalTimer() {
 function renderQuestion() {
   isAnswered = false;
   hasQuestionTimerStarted = false;
-  stopBattleTimers();
+  if (timerGaugeInterval) {
+    clearInterval(timerGaugeInterval);
+    timerGaugeInterval = null;
+  }
+  clearTimeout(postAnswerTimerId);
+  clearTimeout(fallbackTimerId);
+  stopMicRecognition();
 
   const q = currentQueue[currentIndex];
   document.getElementById('quizFeedback').classList.add('hidden');
@@ -3556,7 +3568,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // タップのたびに AudioContext のスリープ解除と日付またぎ（デイリーミッション更新）を保証
 document.addEventListener('pointerdown', () => {
   initAudio();
-  unlockSpeechSynthesis();
   if (userData.lastLoginDate !== getTodayString()) {
     checkDailyStreak();
     saveData();
