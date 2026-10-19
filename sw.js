@@ -2,7 +2,7 @@
 // 英検3級 クロノ・オデッセイ Service Worker (sw.js)
 // オフライン完全対応・CDN動的キャッシュ機構付き
 // ==========================================
-const CACHE_NAME = 'eiken3-chrono-v5';
+const CACHE_NAME = 'eiken3-chrono-v7';
 const urlsToCache = [
   './',
   './index.html',
