@@ -13,10 +13,14 @@ let speechTimeoutId = null;
 let speechInitTimerId = null;
 let postAnswerTimerId = null;
 let cachedVoices = [];
+let speechSessionId = 0;
 
 function loadVoices() {
   if (!('speechSynthesis' in window)) return;
-  cachedVoices = window.speechSynthesis.getVoices();
+  try {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) cachedVoices = voices;
+  } catch (e) {}
 }
 if ('speechSynthesis' in window) {
   loadVoices();
@@ -25,9 +29,12 @@ if ('speechSynthesis' in window) {
 
 function getBestEnglishVoice() {
   if (!cachedVoices || cachedVoices.length === 0) loadVoices();
-  return cachedVoices.find(v => v.lang === 'en-US' && v.name.includes('Google')) ||
-         cachedVoices.find(v => v.lang === 'en-US') ||
-         cachedVoices.find(v => v.lang && v.lang.startsWith('en')) || null;
+  if (!cachedVoices || cachedVoices.length === 0) return null;
+  // クラウド専用音声(localService: false)による無音化を防ぎ、端末内蔵(localService: true)の英語音声を最優先
+  return cachedVoices.find(v => v.localService && (v.lang === 'en-US' || v.lang === 'en_US')) ||
+         cachedVoices.find(v => v.localService && v.lang && v.lang.toLowerCase().startsWith('en')) ||
+         cachedVoices.find(v => v.lang === 'en-US' || v.lang === 'en_US') ||
+         cachedVoices.find(v => v.lang && v.lang.toLowerCase().startsWith('en')) || null;
 }
 
 function toggleVoiceSpeed() {
@@ -47,22 +54,28 @@ function cleanTextForSpeech(text) {
     .trim();
 }
 
-let speechSessionId = 0;
-
 function cancelActiveSpeech() {
   speechSessionId += 1;
   isDialogueSpeaking = false;
   clearTimeout(dialogueNextTimer);
   clearTimeout(speechInitTimerId);
   clearTimeout(speechTimeoutId);
+  const hadActiveUtterance = Boolean(activeUtterance);
   if (activeUtterance) {
     activeUtterance.onend = null;
     activeUtterance.onerror = null;
     activeUtterance = null;
   }
   if ('speechSynthesis' in window) {
-    try { window.speechSynthesis.cancel(); } catch (e) {}
+    try {
+      // 実際に再生中・待機中のときのみ cancel() を呼び、空撃ち連打によるTTSロックを防止
+      if (hadActiveUtterance || window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel();
+        return true;
+      }
+    } catch (e) {}
   }
+  return false;
 }
 
 function speakText(text, onCompleteCallback) {
@@ -72,25 +85,32 @@ function speakText(text, onCompleteCallback) {
     return;
   }
   try {
-    cancelActiveSpeech();
+    const wasCanceled = cancelActiveSpeech();
     const mySessionId = speechSessionId;
 
-    speechInitTimerId = setTimeout(() => {
+    const executeSpeak = () => {
       if (mySessionId !== speechSessionId) return;
+      try {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      } catch (e) {}
+
       const uttr = new SpeechSynthesisUtterance(cleanText);
       activeUtterance = uttr;
       uttr.lang = 'en-US';
       uttr.rate = voiceSpeed;
+      uttr.volume = 1.0;
 
       const bestVoice = getBestEnglishVoice();
-      if (bestVoice) uttr.voice = bestVoice;
+      if (bestVoice) {
+        try { uttr.voice = bestVoice; } catch (e) {}
+      }
 
       let called = false;
       const completeOnce = () => {
         if (called || mySessionId !== speechSessionId) return;
         called = true;
         clearTimeout(speechTimeoutId);
-        activeUtterance = null;
+        if (activeUtterance === uttr) activeUtterance = null;
         if (onCompleteCallback) onCompleteCallback();
       };
 
@@ -101,7 +121,14 @@ function speakText(text, onCompleteCallback) {
       speechTimeoutId = setTimeout(completeOnce, dynamicLimit);
 
       window.speechSynthesis.speak(uttr);
-    }, 80);
+    };
+
+    // 直前に再生中で cancel() した時のみ 50ms 待ち、初回発声等はタップ権限を失わないよう同期実行で即座に発声
+    if (wasCanceled) {
+      speechInitTimerId = setTimeout(executeSpeak, 50);
+    } else {
+      executeSpeak();
+    }
   } catch (e) {
     if (onCompleteCallback) onCompleteCallback();
   }
@@ -113,7 +140,7 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
     return;
   }
   try {
-    cancelActiveSpeech();
+    const wasCanceled = cancelActiveSpeech();
     const mySessionId = speechSessionId;
     isDialogueSpeaking = true;
     let index = 0;
@@ -126,15 +153,22 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
         if (onCompleteCallback) onCompleteCallback();
         return;
       }
+      try {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      } catch (e) {}
+
       const segment = dialogueArray[index];
       const segText = cleanTextForSpeech(segment.text);
       const uttr = new SpeechSynthesisUtterance(segText);
       activeUtterance = uttr;
       uttr.lang = 'en-US';
       uttr.rate = voiceSpeed;
+      uttr.volume = 1.0;
 
       const bestVoice = getBestEnglishVoice();
-      if (bestVoice) uttr.voice = bestVoice;
+      if (bestVoice) {
+        try { uttr.voice = bestVoice; } catch (e) {}
+      }
 
       if (segment.speaker === 'female') uttr.pitch = 1.22;
       else if (segment.speaker === 'male') uttr.pitch = 0.82;
@@ -158,7 +192,11 @@ function playDialogueSpeech(dialogueArray, onCompleteCallback) {
       window.speechSynthesis.speak(uttr);
     }
 
-    dialogueNextTimer = setTimeout(speakNextSegment, 80);
+    if (wasCanceled) {
+      dialogueNextTimer = setTimeout(speakNextSegment, 50);
+    } else {
+      speakNextSegment();
+    }
   } catch (e) {
     isDialogueSpeaking = false;
     if (onCompleteCallback) onCompleteCallback();
@@ -199,7 +237,12 @@ const BGM_DATA = {
 function initAudio() {
   try {
     if (!actx && AudioContext) actx = new AudioContext();
-    if (actx && actx.state === 'suspended') actx.resume();
+    if (actx && actx.state !== 'running') actx.resume();
+  } catch (e) {}
+  try {
+    if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
   } catch (e) {}
 }
 
