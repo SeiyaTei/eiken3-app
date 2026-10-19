@@ -314,7 +314,11 @@ function showBossDialogueModal(title, icon, text, onConfirm) {
   if (modal) modal.classList.remove('hidden');
 
   if (btn) {
+    let clicked = false;
     btn.onclick = () => {
+      if (clicked) return;
+      clicked = true;
+      btn.onclick = null;
       if (modal) modal.classList.add('hidden');
       if (onConfirm) onConfirm();
     };
@@ -2495,14 +2499,6 @@ function playCurrentAudio() {
   }
 }
 
-function playCurrentAudio() {
-  const q = currentQueue[currentIndex];
-  if (!q) return;
-  if ((isAnswered || q.type === 'speaking') && q.audio_complete) speakText(q.audio_complete);
-  else if (q.type === 'listening' && q.dialogue) playDialogueSpeech(q.dialogue);
-  else if (q.audio_question) speakText(q.audio_question);
-}
-
 function use5050Hint() {
   if (isAnswered) return;
   const q = currentQueue[currentIndex];
@@ -2687,6 +2683,11 @@ function processAnswerResult(isCorrect, q) {
       // 殿堂入りしていた問題を間違えた場合は、殿堂入りから外して克服中へ戻す
       userData.masteredList = userData.masteredList.filter(x => x !== q.id);
     }
+
+    feedbackIcon.innerText = '❌';
+    feedbackTitle.innerText = 'おしい！ 時空記録（解説）を確認しよう';
+    feedbackTitle.className = "text-sm md:text-base font-black text-rose-400";
+  }
 
   feedbackExplain.innerText = q.explain || '正解を確認して次へ進もう！';
   const audioBtnContainer = document.getElementById('audioBtnContainer');
