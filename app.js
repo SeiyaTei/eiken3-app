@@ -2268,6 +2268,7 @@ function startSession() {
   isFeverMode = false;
   isSessionFinishing = false;
   isBossTicketConsumedInSession = false;
+window._isResultRewardGranted = false;
 
   const pStats = calculatePlayerStats();
   playerMaxHp = pStats.hp;
@@ -2741,6 +2742,8 @@ function finishSession() {
 }
 
 function proceedFinishSession() {
+  if (window._isResultRewardGranted) return;
+  window._isResultRewardGranted = true;
   document.getElementById('quizFeedback').classList.add('hidden');
   document.getElementById('viewQuiz').classList.add('hidden');
   document.getElementById('viewResult').classList.remove('hidden');
@@ -3149,7 +3152,7 @@ function rollEquipGacha(times = 1) {
   if (typeof SHOP_EQUIP_DATA === 'undefined') return;
 
   userData.gems -= cost;
-  const gachaPool = SHOP_EQUIP_DATA.filter(e => !e.isSecret && e.price < 9000);
+  const basePool = SHOP_EQUIP_DATA.filter(e => !e.isSecret && e.price < 9000);
 
   // レアリティ別の排出重みと解禁レベル（序盤で最終装備が出るのを防ぎ、1年間の成長に合わせて解禁）
   const getEquipWeight = (eq) => {
@@ -3160,15 +3163,26 @@ function rollEquipGacha(times = 1) {
     return 120; // ノーマル
   };
 
-  const weightedPool = [];
-  gachaPool.forEach(eq => {
-    const w = getEquipWeight(eq);
-    for (let k = 0; k < w; k++) weightedPool.push(eq);
-  });
-
   const results = [];
   for (let i = 0; i < times; i++) {
-    const picked = weightedPool[Math.floor(Math.random() * weightedPool.length)] || gachaPool[0];
+    // 既に +99 に達した武具をリアルタイムで排出対象から除外し、5連召喚中の上限到達にも対応
+    const activePool = basePool.filter(e => !userData.unlockedEquips.includes(e.id) || (userData.equipLevels[e.id] || 0) < 99);
+
+    if (activePool.length === 0) {
+      userData.inventory.potion += 1;
+      userData.inventory.hint += 2;
+      userData.inventory.loupe += 2;
+      results.push(`👑 全武具+99達成ボーナス：🧪エリクサー+1 / 💡ヒント+2 / 🔍モノクル+2`);
+      continue;
+    }
+
+    const weightedPool = [];
+    activePool.forEach(eq => {
+      const w = getEquipWeight(eq);
+      for (let k = 0; k < w; k++) weightedPool.push(eq);
+    });
+
+    const picked = weightedPool[Math.floor(Math.random() * weightedPool.length)] || activePool[0];
     if (!userData.unlockedEquips.includes(picked.id)) {
       userData.unlockedEquips.push(picked.id);
       results.push(`🆕 ${picked.icon}【${picked.name}】(${picked.rank}) 入手！`);
@@ -3521,4 +3535,10 @@ document.addEventListener('visibilitychange', () => {
       else playBGM('home');
     }
   }
+});
+
+// 長押し時のブラウザ標準コンテキストメニュー表示を封印（検索入力欄などは除外）
+document.addEventListener('contextmenu', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  e.preventDefault();
 });
