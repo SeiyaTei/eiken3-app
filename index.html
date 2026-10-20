@@ -946,22 +946,16 @@
     </div>
   </nav>
 
-  <!-- 外部JavaScriptファイルの読み込み（キャッシュ強制バイパス付き） -->
-  <script src="data_part1.js?v=final1"></script>
-  <script src="data_part2.js?v=final1"></script>
-  <script src="data_exam.js?v=final1"></script>
-  <script src="data_extra.js?v=final1"></script>
-  <script src="app.js?v=final1"></script>
+  <!-- 外部JavaScriptファイルの読み込み（キャッシュ更新バージョン v8） -->
+  <script src="data_part1.js?v=chrono_v8"></script>
+  <script src="data_part2.js?v=chrono_v8"></script>
+  <script src="data_exam.js?v=chrono_v8"></script>
+  <script src="data_extra.js?v=chrono_v8"></script>
+  <script src="app.js?v=chrono_v8"></script>
   <script>
-    // 古い壊れたキャッシュを保持し続けるService Workerを一度すべて強制解除・全削除する
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        for (let reg of regs) reg.unregister();
-      });
-    }
-    if ('caches' in window) {
-      caches.keys().then(keys => {
-        for (let key of keys) caches.delete(key);
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
       });
     }
   </script>
