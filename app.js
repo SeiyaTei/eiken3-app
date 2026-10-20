@@ -4,18 +4,16 @@
 // 【前半：セクション 1 〜 7】
 // ==========================================
 
-// ==================== 1. 音声合成エンジン (初期シンプル構造・確実発声版) ====================
+// ==================== 1. 音声合成エンジン (Android Chrome 完全同期・ネイティブキュー対応版) ====================
 let voiceSpeed = 0.85;
 let isDialogueSpeaking = false;
-let dialogueNextTimer = null;
 let activeUtterance = null;
 let speechTimeoutId = null;
-let speechInitTimerId = null;
 let postAnswerTimerId = null;
 let speechSessionId = 0;
 
 // GC（ガベージコレクション）で発声中にオブジェクトが消えるのを防ぐグローバルプール
-window._ activeUtterances = [];
+window._activeUtterances = [];
 
 function toggleVoiceSpeed() {
   voiceSpeed = (voiceSpeed === 0.85) ? 1.0 : 0.85;
@@ -34,114 +32,172 @@ function cleanTextForSpeech(text) {
     .trim();
 }
 
-function cancelActiveSpeech() {
+// 既存の音声・コールバックを安全に破棄（不要な cancel() 空撃ちを防止）
+function cancelActiveSpeech(forceHardwareCancel = true) {
   speechSessionId += 1;
   isDialogueSpeaking = false;
-  clearTimeout(dialogueNextTimer);
-  clearTimeout(speechInitTimerId);
   clearTimeout(speechTimeoutId);
-  if (activeUtterance) {
-    activeUtterance.onend = null;
-    activeUtterance.onerror = null;
-    activeUtterance = null;
+  speechTimeoutId = null;
+
+  if (window._activeUtterances && window._activeUtterances.length > 0) {
+    window._activeUtterances.forEach(u => {
+      u.onend = null;
+      u.onerror = null;
+    });
   }
   window._activeUtterances = [];
-  if ('speechSynthesis' in window) {
-    try { window.speechSynthesis.cancel(); } catch (e) {}
+  activeUtterance = null;
+
+  if (forceHardwareCancel && 'speechSynthesis' in window) {
+    try {
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel();
+      }
+    } catch (e) {}
   }
 }
 
-// 1文を確実に鳴らすコア関数（voice強制割当を行わずOS標準のen-USを使用）
-function speakSingleUtterance(text, pitch, mySessionId, onEnded) {
-  const cleanText = cleanTextForSpeech(text);
-  if (!('speechSynthesis' in window) || !cleanText) {
-    if (onEnded) onEnded();
-    return;
-  }
-  try {
-    // Chrome/AndroidのTTS一時停止ロックを強制解除
-    try { window.speechSynthesis.resume(); } catch (e) {}
-
-    const uttr = new SpeechSynthesisUtterance(cleanText);
-    window._activeUtterances.push(uttr);
-    activeUtterance = uttr;
-
-    uttr.lang = 'en-US';
-    uttr.rate = voiceSpeed;
-    uttr.pitch = pitch || 1.0;
-    uttr.volume = 1.0;
-
-    let finished = false;
-    const done = () => {
-      if (finished || mySessionId !== speechSessionId) return;
-      finished = true;
-      clearTimeout(speechTimeoutId);
-      activeUtterance = null;
-      if (onEnded) onEnded();
-    };
-
-    uttr.onend = done;
-    uttr.onerror = done;
-
-    const limitMs = Math.max(4500, Math.round((cleanText.length * 110) / voiceSpeed) + 2000);
-    speechTimeoutId = setTimeout(done, limitMs);
-
-    window.speechSynthesis.speak(uttr);
-    // speak直後にもう一度resumeを叩くことでAndroid Chromeの無音スタックを防止
-    try { window.speechSynthesis.resume(); } catch (e) {}
-  } catch (e) {
-    if (onEnded) onEnded();
-  }
-}
-
+// 1文を同期的に鳴らすコア関数（User Activation を維持するため setTimeout を挟まない）
 function speakText(text, onCompleteCallback) {
   const cleanText = cleanTextForSpeech(text);
   if (!('speechSynthesis' in window) || !cleanText) {
     if (onCompleteCallback) onCompleteCallback();
     return;
   }
-  cancelActiveSpeech();
+
+  // 既に発声中の場合のみハードウェアキャンセルを実行
+  const wasSpeaking = window.speechSynthesis.speaking || window.speechSynthesis.pending;
+  cancelActiveSpeech(wasSpeaking);
   const mySessionId = speechSessionId;
 
-  speechInitTimerId = setTimeout(() => {
+  const fireSpeak = () => {
     if (mySessionId !== speechSessionId) return;
-    speakSingleUtterance(cleanText, 1.0, mySessionId, onCompleteCallback);
-  }, 60);
+    try {
+      const uttr = new SpeechSynthesisUtterance(cleanText);
+      window._activeUtterances.push(uttr);
+      activeUtterance = uttr;
+
+      uttr.lang = 'en-US';
+      uttr.rate = voiceSpeed;
+      uttr.pitch = 1.0;
+      uttr.volume = 1.0;
+
+      let finished = false;
+      const done = () => {
+        if (finished || mySessionId !== speechSessionId) return;
+        finished = true;
+        clearTimeout(speechTimeoutId);
+        speechTimeoutId = null;
+        activeUtterance = null;
+        if (onCompleteCallback) onCompleteCallback();
+      };
+
+      uttr.onend = done;
+      uttr.onerror = done;
+
+      // Android で onend が発火しないケースのフェイルセーフタイマー
+      const limitMs = Math.max(4000, Math.round((cleanText.length * 110) / voiceSpeed) + 1800);
+      speechTimeoutId = setTimeout(done, limitMs);
+
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      window.speechSynthesis.speak(uttr);
+    } catch (e) {
+      if (onCompleteCallback) onCompleteCallback();
+    }
+  };
+
+  // cancel() 直後の同一ティックで speak() すると消える Android バグへの対策：
+  // 再生中だった場合のみ最小遅延(15ms)を入れ、待機中からの発火は完全同期(0ms)で即座に鳴らす
+  if (wasSpeaking) {
+    setTimeout(fireSpeak, 15);
+  } else {
+    fireSpeak();
+  }
 }
 
+// 対話リスニング：setTimeout の再帰を廃止し、1回のユーザージェスチャー内で全セグメントをネイティブキューへ登録
 function playDialogueSpeech(dialogueArray, onCompleteCallback) {
   if (!('speechSynthesis' in window) || !dialogueArray || dialogueArray.length === 0) {
     if (onCompleteCallback) onCompleteCallback();
     return;
   }
-  cancelActiveSpeech();
-  const mySessionId = speechSessionId;
-  isDialogueSpeaking = true;
-  let index = 0;
 
-  function nextSegment() {
-    if (!isDialogueSpeaking || mySessionId !== speechSessionId) return;
-    if (index >= dialogueArray.length) {
-      isDialogueSpeaking = false;
-      activeUtterance = null;
-      window._activeUtterances = [];
-      if (onCompleteCallback) onCompleteCallback();
-      return;
-    }
+  const validSegments = dialogueArray
+    .map(seg => ({ speaker: seg.speaker, text: cleanTextForSpeech(seg.text) }))
+    .filter(seg => seg.text.length > 0);
 
-    const seg = dialogueArray[index];
-    let pitch = 1.0;
-    if (seg.speaker === 'female') pitch = 1.2;
-    else if (seg.speaker === 'male') pitch = 0.85;
-
-    index += 1;
-    speakSingleUtterance(seg.text, pitch, mySessionId, () => {
-      if (!isDialogueSpeaking || mySessionId !== speechSessionId) return;
-      dialogueNextTimer = setTimeout(nextSegment, 280);
-    });
+  if (validSegments.length === 0) {
+    if (onCompleteCallback) onCompleteCallback();
+    return;
   }
 
-  dialogueNextTimer = setTimeout(nextSegment, 60);
+  const wasSpeaking = window.speechSynthesis.speaking || window.speechSynthesis.pending;
+  cancelActiveSpeech(wasSpeaking);
+  const mySessionId = speechSessionId;
+  isDialogueSpeaking = true;
+
+  const enqueueAll = () => {
+    if (!isDialogueSpeaking || mySessionId !== speechSessionId) return;
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
+      let finished = false;
+      const doneAll = () => {
+        if (finished || mySessionId !== speechSessionId) return;
+        finished = true;
+        isDialogueSpeaking = false;
+        clearTimeout(speechTimeoutId);
+        speechTimeoutId = null;
+        activeUtterance = null;
+        window._activeUtterances = [];
+        if (onCompleteCallback) onCompleteCallback();
+      };
+
+      let totalChars = 0;
+
+      validSegments.forEach((seg, idx) => {
+        totalChars += seg.text.length;
+        // セグメント間の自然な間（ポーズ）をピリオドの余韻で確保
+        const uttr = new SpeechSynthesisUtterance(seg.text);
+        window._activeUtterances.push(uttr);
+
+        uttr.lang = 'en-US';
+        uttr.rate = voiceSpeed;
+        if (seg.speaker === 'female') uttr.pitch = 1.18;
+        else if (seg.speaker === 'male') uttr.pitch = 0.85;
+        else uttr.pitch = 1.0;
+        uttr.volume = 1.0;
+
+        if (idx === validSegments.length - 1) {
+          activeUtterance = uttr;
+          uttr.onend = doneAll;
+          uttr.onerror = doneAll;
+        } else {
+          uttr.onerror = () => {
+            // 途中のセグメントでエラーが出ても最後まで止まらないよう保護
+          };
+        }
+
+        window.speechSynthesis.speak(uttr);
+      });
+
+      const totalLimitMs = Math.max(6000, Math.round((totalChars * 115) / voiceSpeed) + (validSegments.length * 1200) + 2000);
+      speechTimeoutId = setTimeout(doneAll, totalLimitMs);
+    } catch (e) {
+      isDialogueSpeaking = false;
+      if (onCompleteCallback) onCompleteCallback();
+    }
+  };
+
+  if (wasSpeaking) {
+    setTimeout(enqueueAll, 15);
+  } else {
+    enqueueAll();
+  }
 }
 
 function speakVocabByIndex(idx) {
@@ -179,11 +235,6 @@ function initAudio() {
   try {
     if (!actx && AudioContext) actx = new AudioContext();
     if (actx && actx.state !== 'running') actx.resume();
-  } catch (e) {}
-  try {
-    if ('speechSynthesis' in window && window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
-    }
   } catch (e) {}
 }
 
@@ -2344,15 +2395,18 @@ function updateBattleHpUi() {
 }
 
 let hasQuestionTimerStarted = false;
+let isQuestionTimerExpired = false;
 
 function startCriticalTimer() {
   if (isAnswered || isSessionFinishing || document.getElementById('viewQuiz')?.classList.contains('hidden')) return;
-  // 1つの問題につきタイマー開始は1回のみに厳格制限（お手本音声ボタン連打でメーターが100%に戻るバグを完全防止）
+  // 同一問題内で既に一度でもタイマーが開始されていたら絶対に再初期化・100%リセットしない
   if (hasQuestionTimerStarted) return;
   hasQuestionTimerStarted = true;
+  isQuestionTimerExpired = false;
 
   questionStartTime = Date.now();
   const q = currentQueue[currentIndex];
+  if (!q) return;
   const pStats = calculatePlayerStats();
 
   let baseDuration = 4500;
@@ -2373,12 +2427,27 @@ function startCriticalTimer() {
     timerText.innerText = `⚡ ${secStr}秒以内クリアで時空クリティカル！`;
   }
 
+  runCriticalTimerInterval();
+}
+
+function runCriticalTimerInterval() {
   if (timerGaugeInterval) clearInterval(timerGaugeInterval);
+  if (isAnswered || isQuestionTimerExpired || !hasQuestionTimerStarted) return;
+
+  const gauge = document.getElementById('timerGauge');
+  const timerText = document.getElementById('timerText');
+
   timerGaugeInterval = setInterval(() => {
+    if (isAnswered) {
+      clearInterval(timerGaugeInterval);
+      timerGaugeInterval = null;
+      return;
+    }
     const elapsed = Date.now() - questionStartTime;
     const remainPct = Math.max(0, 100 - (elapsed / criticalLimitDuration) * 100);
     if (gauge) gauge.style.width = `${remainPct}%`;
     if (remainPct <= 0) {
+      isQuestionTimerExpired = true;
       clearInterval(timerGaugeInterval);
       timerGaugeInterval = null;
       if (timerText) timerText.innerText = '⏱️ 落ち着いて正解を選ぼう';
@@ -2389,6 +2458,7 @@ function startCriticalTimer() {
 function renderQuestion() {
   isAnswered = false;
   hasQuestionTimerStarted = false;
+  isQuestionTimerExpired = false;
   if (timerGaugeInterval) {
     clearInterval(timerGaugeInterval);
     timerGaugeInterval = null;
@@ -2507,15 +2577,19 @@ function renderQuestion() {
 function playCurrentAudio() {
   const q = currentQueue[currentIndex];
   if (!q) return;
-  // 初回音声の途中で押された場合のみ、読み上げ後にまだタイマーが始まっていなければ1回だけ開始する
-  const afterAudioCallback = (!isAnswered && !hasQuestionTimerStarted) ? () => startCriticalTimer() : null;
+
+  // 解答前にお手本音声ボタンが押された場合、まだタイマーが動いていなければ即座に開始し、
+  // 既に動いている場合は現在の残り時間をそのまま維持する（絶対にリセットしない）
+  if (!isAnswered && !hasQuestionTimerStarted) {
+    startCriticalTimer();
+  }
 
   if ((isAnswered || q.type === 'speaking') && q.audio_complete) {
-    speakText(q.audio_complete, afterAudioCallback);
+    speakText(q.audio_complete);
   } else if (q.type === 'listening' && q.dialogue) {
-    playDialogueSpeech(q.dialogue, afterAudioCallback);
+    playDialogueSpeech(q.dialogue);
   } else if (q.audio_question) {
-    speakText(q.audio_question, afterAudioCallback);
+    speakText(q.audio_question);
   }
 }
 
@@ -3519,6 +3593,10 @@ document.addEventListener('pointerdown', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     clearTimeout(bgmTimer);
+    if (timerGaugeInterval) {
+      clearInterval(timerGaugeInterval);
+      timerGaugeInterval = null;
+    }
     cancelActiveSpeech();
     if (activeRecordedAudio) {
       try { activeRecordedAudio.pause(); } catch (e) {}
@@ -3538,9 +3616,13 @@ document.addEventListener('visibilitychange', () => {
     const isQuizVisible = !document.getElementById('viewQuiz')?.classList.contains('hidden');
     const isResultVisible = !document.getElementById('viewResult')?.classList.contains('hidden');
 
-    // バトル中の音声読み上げ待機中にスリープした場合、復帰時に制限時間タイマーが停止したままになるのを防止
-    if (isQuizVisible && !isAnswered && !timerGaugeInterval && currentQueue.length > 0) {
-      startCriticalTimer();
+    // バトル中にスリープから復帰した場合：未開始なら開始し、開始済みならリセットせず残り時間を継続
+    if (isQuizVisible && !isAnswered && currentQueue.length > 0) {
+      if (!hasQuestionTimerStarted) {
+        startCriticalTimer();
+      } else if (!isQuestionTimerExpired && !timerGaugeInterval) {
+        runCriticalTimerInterval();
+      }
     }
 
     if (isBgmEnabled) {
