@@ -2660,10 +2660,12 @@ function handleAnswer(selectedIdx) {
 function processAnswerResult(isCorrect, q) {
   if (isAnswered) return;
   isAnswered = true;
+  const wasTimerStarted = hasQuestionTimerStarted;
   stopBattleTimers();
 
   const answerDuration = Date.now() - questionStartTime;
-  const isQuickAnswer = (answerDuration <= criticalLimitDuration);
+  // 音声再生中（タイマー開始前）の超早押し、または制限時間内の解答をクリティカル判定とする
+  const isQuickAnswer = !wasTimerStarted || (answerDuration <= criticalLimitDuration);
 
   answeredQuestionsCount += 1;
   // ボス戦で最初の1問目に解答した時点でチケットを1枚確定消費（開始直後の誤タップ帰還は保護しつつ、敗北直前のリタイア逃げチートを防止）
